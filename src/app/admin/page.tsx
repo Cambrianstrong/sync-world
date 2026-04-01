@@ -1,0 +1,539 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { Track, ActivityItem } from '@/lib/types';
+import { GENRES, ENERGY_LEVELS, VOCAL_TYPES, TRACK_STATUSES } from '@/lib/types';
+import TopNav from '@/components/nav/TopNav';
+import StatCard from '@/components/ui/StatCard';
+import Badge, { statusBadgeVariant, syncBadgeVariant } from '@/components/ui/Badge';
+import Modal from '@/components/ui/Modal';
+import Notification, { useNotification } from '@/components/ui/Notification';
+import { useAuth } from '@/hooks/useAuth';
+import Link from 'next/link';
+
+export default function AdminPage() {
+  const { profile, loading: authLoading } = useAuth();
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [musicRequests, setMusicRequests] = useState<any[]>([]);
+  const [editTrack, setEditTrack] = useState<Track | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string | boolean | number | null>>({});
+  const [saving, setSaving] = useState(false);
+  const { notif, notify } = useNotification();
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    const supabase = createClient();
+    const [tracksRes, activityRes, requestsRes] = await Promise.all([
+      supabase.from('tracks').select('*').order('date_added', { ascending: false }),
+      supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(20),
+      supabase.from('music_requests').select('*').order('created_at', { ascending: false }).limit(20),
+    ]);
+    if (tracksRes.data) setTracks(tracksRes.data);
+    if (activityRes.data) setActivity(activityRes.data);
+    if (requestsRes.data) setMusicRequests(requestsRes.data);
+  }
+
+  async function updateSyncStatus(trackId: string, status: string) {
+    const supabase = createClient();
+    const track = tracks.find(t => t.id === trackId);
+    if (!track) return;
+
+    await supabase.from('tracks').update({ sync_status: status }).eq('id', trackId);
+
+    await supabase.from('activity_log').insert({
+      type: status === 'placed' ? 'placed' : 'interest',
+      text: `'${track.title}' status updated to ${status}`,
+      track_id: trackId,
+      user_id: profile?.id || null,
+    });
+
+    notify(`"${track.title}" updated to ${status}`, 'info');
+    loadData();
+  }
+
+  function openEdit(track: Track) {
+    setEditTrack(track);
+    setEditForm({
+      title: track.title,
+      artist: track.artist,
+      writers: track.writers || '',
+      producers: track.producers || '',
+      status: track.status,
+      genre: track.genre,
+      subgenre: track.subgenre || '',
+      bpm: track.bpm || '',
+      energy: track.energy,
+      mood: track.mood || '',
+      theme: track.theme || '',
+      vocal: track.vocal,
+      key: track.key || '',
+      has_main: track.has_main,
+      has_clean: track.has_clean,
+      has_inst: track.has_inst,
+      has_acap: track.has_acap,
+      label: track.label || '',
+      splits: track.splits || '',
+      priority: track.priority,
+      seasonal: track.seasonal || '',
+      download_url: track.download_url || '',
+      lyrics: track.lyrics || '',
+      notes: track.notes || '',
+    });
+  }
+
+  async function saveEdit() {
+    if (!editTrack) return;
+    setSaving(true);
+    const supabase = createClient();
+
+    const updates = {
+      title: editForm.title as string,
+      artist: editForm.artist as string,
+      writers: (editForm.writers as string) || null,
+      producers: (editForm.producers as string) || null,
+      status: editForm.status as string,
+      genre: editForm.genre as string,
+      subgenre: (editForm.subgenre as string) || null,
+      bpm: editForm.bpm ? parseInt(editForm.bpm as string) : null,
+      energy: editForm.energy as string,
+      mood: (editForm.mood as string) || null,
+      theme: (editForm.theme as string) || null,
+      vocal: editForm.vocal as string,
+      key: (editForm.key as string) || null,
+      has_main: editForm.has_main as boolean,
+      has_clean: editForm.has_clean as boolean,
+      has_inst: editForm.has_inst as boolean,
+      has_acap: editForm.has_acap as boolean,
+      label: (editForm.label as string) || null,
+      splits: (editForm.splits as string) || null,
+      priority: editForm.priority as string,
+      seasonal: (editForm.seasonal as string) || null,
+      download_url: (editForm.download_url as string) || null,
+      lyrics: (editForm.lyrics as string) || null,
+      notes: (editForm.notes as string) || null,
+    };
+
+    const { error } = await supabase.from('tracks').update(updates).eq('id', editTrack.id);
+
+    if (error) {
+      notify(`Error: ${error.message}`, 'error');
+    } else {
+      notify(`"${updates.title}" updated`, 'success');
+      setEditTrack(null);
+      loadData();
+    }
+    setSaving(false);
+  }
+
+  async function deleteTrack(trackId: string) {
+    const track = tracks.find(t => t.id === trackId);
+    if (!track || !confirm(`Delete "${track.title}" permanently?`)) return;
+
+    const supabase = createClient();
+    await supabase.from('tracks').delete().eq('id', trackId);
+    notify(`"${track.title}" deleted`, 'info');
+    setEditTrack(null);
+    loadData();
+  }
+
+  const updateField = (field: string, value: string | boolean | number) => {
+    setEditForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const totalDownloads = tracks.reduce((s, t) => s + t.download_count, 0);
+  const liked = tracks.filter(t => t.sync_status === 'liked').length;
+  const chosen = tracks.filter(t => t.sync_status === 'chosen').length;
+  const placed = tracks.filter(t => t.sync_status === 'placed').length;
+
+  const activityColors: Record<string, string> = {
+    download: 'var(--orange)', interest: 'var(--pink)',
+    placed: 'var(--green)', upload: 'var(--accent)', submission: 'var(--cyan)',
+  };
+
+  const thStyle: React.CSSProperties = {
+    padding: '12px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600,
+    textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--dim)',
+    background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid var(--border)',
+  };
+  const tdStyle: React.CSSProperties = {
+    padding: '12px 14px', fontSize: 14, borderBottom: '1px solid var(--border)', verticalAlign: 'middle',
+  };
+  const formGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
+  const labelStyle: React.CSSProperties = { fontSize: 11, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: 0.3 };
+
+  if (authLoading || !profile) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <p style={{ color: 'var(--dim)', fontSize: 14 }}>Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <TopNav role={profile?.role} userName={profile?.full_name} />
+      <div className="page-container">
+        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+          Admin Dashboard
+        </h1>
+        <p style={{ color: 'var(--dim)', fontSize: 14, marginBottom: 28 }}>
+          Track downloads, interest signals, placements, and manage the full catalog pipeline.
+        </p>
+
+        {/* Stats */}
+        <div className="grid-stats" style={{ marginBottom: 28 }}>
+          <StatCard label="Total Catalog" value={tracks.length} color="var(--accent)" />
+          <StatCard label="Total Downloads" value={totalDownloads} color="var(--orange)" />
+          <StatCard label="Liked" value={liked} color="var(--pink)" />
+          <StatCard label="Chosen" value={chosen} color="var(--cyan)" />
+          <StatCard label="Placed" value={placed} color="var(--green)" />
+        </div>
+
+        {/* Quick links */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+          <Link href="/admin/submissions" style={{
+            padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text)', textDecoration: 'none',
+            fontSize: 13, fontWeight: 500,
+          }}>
+            Manage Submissions
+          </Link>
+          <Link href="/admin/invites" style={{
+            padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text)', textDecoration: 'none',
+            fontSize: 13, fontWeight: 500,
+          }}>
+            Invite Links
+          </Link>
+          <Link href="/admin/contacts" style={{
+            padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text)', textDecoration: 'none',
+            fontSize: 13, fontWeight: 500,
+          }}>
+            Manage Contacts
+          </Link>
+        </div>
+
+        {/* Music Requests */}
+        {musicRequests.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <h3 style={{ fontSize: 16, marginBottom: 14 }}>
+              Music Requests
+              <span style={{ fontSize: 12, color: 'var(--dim)', fontWeight: 400, marginLeft: 8 }}>
+                ({musicRequests.length})
+              </span>
+            </h3>
+            <div className="table-scroll">
+              <table style={{
+                width: '100%', borderCollapse: 'separate', borderSpacing: 0,
+                background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
+              }}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>From</th>
+                    <th style={thStyle}>Genre</th>
+                    <th style={thStyle}>Mood / Energy</th>
+                    <th style={thStyle}>Project</th>
+                    <th style={thStyle}>Deadline</th>
+                    <th style={thStyle}>Description</th>
+                    <th style={thStyle}>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {musicRequests.map((r: any) => (
+                    <tr key={r.id}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{r.user_name || 'Unknown'}</div>
+                        <div style={{ color: 'var(--dim)', fontSize: 11 }}>{r.user_email}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <div style={{ fontSize: 13 }}>{r.genre || '\u2014'}</div>
+                        {r.subgenre && <div style={{ color: 'var(--dim)', fontSize: 11 }}>{r.subgenre}</div>}
+                      </td>
+                      <td style={tdStyle}>
+                        <div style={{ fontSize: 13 }}>
+                          {[r.mood, r.energy].filter(Boolean).join(' / ') || '\u2014'}
+                        </div>
+                        {r.vocal && <div style={{ color: 'var(--dim)', fontSize: 11 }}>{r.vocal}</div>}
+                      </td>
+                      <td style={{ ...tdStyle, fontSize: 13 }}>{r.project || '\u2014'}</td>
+                      <td style={{ ...tdStyle, fontSize: 13 }}>{r.deadline || '\u2014'}</td>
+                      <td style={{ ...tdStyle, fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.description || r.reference || '\u2014'}
+                      </td>
+                      <td style={{ ...tdStyle, fontSize: 12, color: 'var(--dim)' }}>
+                        {new Date(r.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div className="admin-layout">
+          {/* Pipeline Table */}
+          <div>
+            <h3 style={{ fontSize: 16, marginBottom: 14 }}>Catalog Pipeline</h3>
+            <div className="table-scroll">
+            <table style={{
+              width: '100%', borderCollapse: 'separate', borderSpacing: 0,
+              background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
+            }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Title / Artist</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Downloads</th>
+                  <th style={thStyle}>Sync Status</th>
+                  <th style={thStyle}>Update</th>
+                  <th style={thStyle}>Edit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tracks.map(t => (
+                  <tr key={t.id}>
+                    <td style={tdStyle}>
+                      <div style={{ fontWeight: 600 }}>{t.title}</div>
+                      <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
+                    </td>
+                    <td style={tdStyle}>
+                      <Badge variant={statusBadgeVariant(t.status)}>
+                        {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
+                      </Badge>
+                    </td>
+                    <td style={{
+                      ...tdStyle, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
+                      color: t.download_count > 0 ? 'var(--orange)' : 'var(--dim)',
+                    }}>
+                      {t.download_count}
+                    </td>
+                    <td style={tdStyle}>
+                      {t.sync_status !== 'none' ? (
+                        <Badge variant={syncBadgeVariant(t.sync_status)}>
+                          {t.sync_status.charAt(0).toUpperCase() + t.sync_status.slice(1)}
+                        </Badge>
+                      ) : (
+                        <span style={{ color: 'var(--dim)', fontSize: 12 }}>&mdash;</span>
+                      )}
+                    </td>
+                    <td style={tdStyle}>
+                      <select
+                        value={t.sync_status}
+                        onChange={e => updateSyncStatus(t.id, e.target.value)}
+                        style={{
+                          padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                          background: 'var(--bg)', color: 'var(--text)', fontSize: 12,
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}
+                      >
+                        <option value="none">None</option>
+                        <option value="liked">Liked</option>
+                        <option value="chosen">Chosen</option>
+                        <option value="placed">Placed</option>
+                      </select>
+                    </td>
+                    <td style={tdStyle}>
+                      <button onClick={() => openEdit(t)} style={{
+                        padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
+                        background: 'rgba(0,0,0,0.02)', color: 'var(--text)', fontSize: 12,
+                        cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                      }}>
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          </div>
+
+          {/* Activity Feed */}
+          <div>
+            <h3 style={{ fontSize: 16, marginBottom: 14 }}>Activity Feed</h3>
+            <ul style={{ listStyle: 'none' }}>
+              {activity.length === 0 ? (
+                <li style={{ padding: '12px 16px', color: 'var(--dim)', fontSize: 13 }}>No activity yet</li>
+              ) : (
+                activity.map(a => (
+                  <li key={a.id} style={{
+                    padding: '12px 16px', borderLeft: `3px solid ${activityColors[a.type] || 'var(--border)'}`,
+                    marginBottom: 8, background: 'var(--surface)', borderRadius: '0 8px 8px 0', fontSize: 13,
+                  }}>
+                    <span>{a.text}</span>
+                    <span style={{ color: 'var(--dim)', fontSize: 11, display: 'block', marginTop: 4 }}>
+                      {new Date(a.created_at).toLocaleString()}
+                    </span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </div>
+
+        {/* Edit Track Modal */}
+        <Modal open={!!editTrack} onClose={() => setEditTrack(null)}>
+          {editTrack && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22 }}>
+                  Edit Track
+                </h2>
+                <span style={{ fontSize: 12, color: 'var(--dim)', background: 'rgba(0,0,0,0.02)', padding: '4px 10px', borderRadius: 6 }}>
+                  {editTrack.id}
+                </span>
+              </div>
+              <p style={{ color: 'var(--dim)', fontSize: 14, marginBottom: 20 }}>
+                Update catalog details for corrections and metadata changes.
+              </p>
+
+              <div className="grid-2col">
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Song Title *</label>
+                  <input value={editForm.title as string} onChange={e => updateField('title', e.target.value)} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Artist(s) *</label>
+                  <input value={editForm.artist as string} onChange={e => updateField('artist', e.target.value)} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Writer(s)</label>
+                  <input value={editForm.writers as string} onChange={e => updateField('writers', e.target.value)} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Producer(s)</label>
+                  <input value={editForm.producers as string} onChange={e => updateField('producers', e.target.value)} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Status</label>
+                  <select value={editForm.status as string} onChange={e => updateField('status', e.target.value)}>
+                    {TRACK_STATUSES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Genre</label>
+                  <select value={editForm.genre as string} onChange={e => updateField('genre', e.target.value)}>
+                    {GENRES.map(g => <option key={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Sub-Genre</label>
+                  <input value={editForm.subgenre as string} onChange={e => updateField('subgenre', e.target.value)} placeholder="e.g. Hip-Hop / Orchestral" />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>BPM</label>
+                  <input value={editForm.bpm as string} onChange={e => updateField('bpm', e.target.value)} type="number" min="40" max="220" />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Energy Level</label>
+                  <select value={editForm.energy as string} onChange={e => updateField('energy', e.target.value)}>
+                    {ENERGY_LEVELS.map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Mood / Vibe</label>
+                  <input value={editForm.mood as string} onChange={e => updateField('mood', e.target.value)} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Lyric Theme</label>
+                  <input value={editForm.theme as string} onChange={e => updateField('theme', e.target.value)} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Vocal Type</label>
+                  <select value={editForm.vocal as string} onChange={e => updateField('vocal', e.target.value)}>
+                    {VOCAL_TYPES.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Key</label>
+                  <input value={editForm.key as string} onChange={e => updateField('key', e.target.value)} placeholder="e.g. Am, C#" />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Record Label</label>
+                  <input value={editForm.label as string} onChange={e => updateField('label', e.target.value)} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Splits (Writer %)</label>
+                  <input value={editForm.splits as string} onChange={e => updateField('splits', e.target.value)} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Priority</label>
+                  <select value={editForm.priority as string} onChange={e => updateField('priority', e.target.value)}>
+                    <option>High</option><option>Medium</option><option>Low</option>
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Seasonal Fit</label>
+                  <input value={editForm.seasonal as string} onChange={e => updateField('seasonal', e.target.value)} placeholder="e.g. Summer, Year-Round" />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Download Link</label>
+                  <input value={editForm.download_url as string} onChange={e => updateField('download_url', e.target.value)} placeholder="DISCO, Drive, Box URL" />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Versions Available</label>
+                  <div style={{ display: 'flex', gap: 14, marginTop: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { field: 'has_main', label: 'Main' },
+                      { field: 'has_clean', label: 'Clean' },
+                      { field: 'has_inst', label: 'Instrumental' },
+                      { field: 'has_acap', label: 'Acapella' },
+                    ].map(v => (
+                      <label key={v.field} style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text)' }}>
+                        <input type="checkbox" checked={editForm[v.field] as boolean} onChange={e => updateField(v.field, e.target.checked)} /> {v.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Lyrics</label>
+                  <textarea value={editForm.lyrics as string} onChange={e => updateField('lyrics', e.target.value)} rows={3} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Notes / Sync Target</label>
+                  <textarea value={editForm.notes as string} onChange={e => updateField('notes', e.target.value)} rows={3} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--border)', justifyContent: 'space-between' }}>
+                <button onClick={() => deleteTrack(editTrack.id)} style={{
+                  padding: '10px 20px', borderRadius: 8, border: '1px solid var(--red)',
+                  background: 'transparent', color: 'var(--red)', fontSize: 13, fontWeight: 500,
+                  cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  Delete Track
+                </button>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button onClick={() => setEditTrack(null)} style={{
+                    padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border)',
+                    background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500,
+                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  }}>
+                    Cancel
+                  </button>
+                  <button onClick={saveEdit} disabled={saving} style={{
+                    padding: '10px 24px', borderRadius: 8, border: 'none',
+                    background: 'var(--green)', color: '#fff', fontSize: 13, fontWeight: 600,
+                    cursor: saving ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    opacity: saving ? 0.7 : 1,
+                  }}>
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        <Notification {...notif} />
+      </div>
+    </div>
+  );
+}
