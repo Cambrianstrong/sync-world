@@ -37,20 +37,24 @@ export default function DropZone({ files, onFilesChange }: DropZoneProps) {
         onDrop={handleDrop}
         style={{
           border: `2px dashed ${dragover ? 'var(--accent)' : 'var(--border)'}`,
-          borderRadius: 12, padding: 40, textAlign: 'center', marginBottom: 20,
+          borderRadius: 12, padding: 32, textAlign: 'center', marginBottom: 20,
           cursor: 'pointer', transition: 'all 0.2s',
           background: dragover ? 'var(--glow)' : 'transparent',
         }}
       >
-        <h3 style={{ fontSize: 16, marginBottom: 6 }}>Drop audio files here or click to browse</h3>
+        <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.5 }}>&#128193;</div>
+        <h3 style={{ fontSize: 16, marginBottom: 6 }}>Tap to select audio files</h3>
         <p style={{ color: 'var(--dim)', fontSize: 13 }}>
-          AIFF or WAV preferred (hi-res) &mdash; MP3 accepted. Mains, Cleans, Instrumentals, Acapellas.
+          WAV, AIFF, or MP3 &mdash; Mains, Cleans, Instrumentals, Acapellas
+        </p>
+        <p style={{ color: 'var(--dim)', fontSize: 11, marginTop: 4 }}>
+          Or drag and drop on desktop
         </p>
         <input
           ref={inputRef}
           type="file"
           multiple
-          accept="audio/*"
+          accept=".wav,.aiff,.aif,.mp3,.m4a,.flac,.ogg,.wma,audio/*"
           style={{ display: 'none' }}
           onChange={handleSelect}
         />

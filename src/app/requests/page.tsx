@@ -494,7 +494,7 @@ export default function RequestsPage() {
                         ref={fileInputRef}
                         type="file"
                         multiple
-                        accept="audio/*,.wav,.aiff,.aif,.mp3"
+                        accept=".wav,.aiff,.aif,.mp3,.m4a,.flac,.ogg,.wma,audio/*"
                         onChange={handleFileSelect}
                         style={{ display: 'none' }}
                       />
