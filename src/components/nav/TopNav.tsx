@@ -50,6 +50,17 @@ export default function TopNav({ role, userName }: TopNavProps) {
               {tab.label}
             </Link>
           ))}
+          {/* Profile + Sign Out in mobile menu */}
+          {userName && (
+            <Link href="/profile" onClick={() => setMenuOpen(false)} className={`nav-tab nav-mobile-only${pathname === '/profile' ? ' active' : ''}`}>
+              My Profile
+            </Link>
+          )}
+          {role && (
+            <button onClick={() => { setMenuOpen(false); handleSignOut(); }} className="nav-tab nav-mobile-only" style={{ textAlign: 'left', color: 'var(--red)' }}>
+              Sign Out
+            </button>
+          )}
         </div>
       </div>
 

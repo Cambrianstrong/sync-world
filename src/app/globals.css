@@ -208,6 +208,10 @@ audio {
   font-weight: 500;
 }
 
+.nav-mobile-only {
+  display: none;
+}
+
 .nav-menu-btn {
   display: none;
   background: none;
@@ -346,6 +350,13 @@ audio {
   .nav-signout {
     font-size: 11px;
     padding: 5px 10px;
+  }
+
+  .nav-tabs.open .nav-mobile-only {
+    display: block;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    padding-top: 10px;
   }
 
   .grid-2col {
