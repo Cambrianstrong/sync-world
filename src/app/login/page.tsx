@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -8,17 +8,37 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [mode, setMode] = useState<'password' | 'magic'>('password');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  // Load saved email on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('sw_remember_email');
+    if (saved) {
+      setEmail(saved);
+      setRememberMe(true);
+      // Auto-focus password field since email is already filled
+      setTimeout(() => passwordRef.current?.focus(), 100);
+    }
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
     const supabase = createClient();
+
+    // Save or clear remembered email
+    if (rememberMe) {
+      localStorage.setItem('sw_remember_email', email);
+    } else {
+      localStorage.removeItem('sw_remember_email');
+    }
 
     if (mode === 'password') {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -107,6 +127,7 @@ export default function LoginPage() {
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
+                    ref={passwordRef}
                     type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                     placeholder="Enter your password" required style={{ width: '100%', paddingRight: 48 }}
                   />
@@ -125,6 +146,17 @@ export default function LoginPage() {
                 </div>
               </div>
             )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <input
+                type="checkbox" id="rememberMe" checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }}
+              />
+              <label htmlFor="rememberMe" style={{ fontSize: 13, color: 'var(--dim)', cursor: 'pointer', userSelect: 'none' }}>
+                Remember me
+              </label>
+            </div>
 
             {error && (
               <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{error}</p>

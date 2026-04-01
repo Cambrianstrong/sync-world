@@ -67,19 +67,35 @@ export async function POST(request: NextRequest) {
     user_id: user.id,
   });
 
-  // Get all admin emails to notify them
-  const { data: admins } = await supabase
+  // Get all admin + producer users to notify them about new briefs
+  const { data: notifyUsers } = await supabase
     .from('profiles')
-    .select('email, full_name')
-    .eq('role', 'admin');
+    .select('id, email, full_name, role')
+    .in('role', ['admin', 'producer']);
 
-  const adminEmails = admins?.map(a => a.email).filter(Boolean) || [];
+  const notifyEmails = notifyUsers?.map(a => a.email).filter(Boolean) || [];
+
+  // Create in-app notifications for all admins and producers
+  const briefTitle = body.project || body.brand || body.genre || 'General Brief';
+  const notifInserts = (notifyUsers || [])
+    .filter(u => u.id !== user.id) // Don't notify the submitter
+    .map(u => ({
+      user_id: u.id,
+      type: 'brief',
+      title: 'New Music Brief',
+      body: `${profile?.full_name || user.email} submitted a brief: ${briefTitle}`,
+      link: '/requests',
+    }));
+
+  if (notifInserts.length > 0) {
+    await supabase.from('notifications').insert(notifInserts);
+  }
 
   // Send email to admins
   let emailSent = false;
   const resendKey = process.env.RESEND_API_KEY;
 
-  if (resendKey && adminEmails.length > 0) {
+  if (resendKey && notifyEmails.length > 0) {
     try {
       const resend = new Resend(resendKey);
       const userName = profile?.full_name || user.email || 'A viewer';
@@ -180,7 +196,7 @@ export async function POST(request: NextRequest) {
 
       await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || 'Sync World <noreply@resend.dev>',
-        to: adminEmails,
+        to: notifyEmails,
         subject: `New Music Brief: ${body.project || body.brand || body.genre || 'General'} - from ${userName}`,
         html,
       });

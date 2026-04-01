@@ -3,10 +3,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Track } from '@/lib/types';
-import { ENERGY_LEVELS, VOCAL_TYPES, TRACK_STATUSES } from '@/lib/types';
+import { ENERGY_LEVELS, VOCAL_TYPES, TRACK_STATUSES, PUBLISHERS } from '@/lib/types';
 import GenreTagInput from '@/components/ui/GenreTagInput';
 import SubgenreInput from '@/components/ui/SubgenreInput';
 import TopNav from '@/components/nav/TopNav';
+import Modal from '@/components/ui/Modal';
 import DropZone from '@/components/upload/DropZone';
 import Badge, { statusBadgeVariant, syncBadgeVariant } from '@/components/ui/Badge';
 import Notification, { useNotification } from '@/components/ui/Notification';
@@ -20,6 +21,7 @@ interface SongGroup {
   artist: string;
   writers: string;
   producers: string;
+  publisher: string;
   status: string;
   genre: string;
   subgenre: string;
@@ -74,17 +76,30 @@ export default function UploadPage() {
   const [songGroups, setSongGroups] = useState<SongGroup[]>([]);
   const [expandedSong, setExpandedSong] = useState<number | null>(null);
   const [sharedMeta, setSharedMeta] = useState({
-    artist: '', writers: '', producers: '', status: 'Unreleased (Complete)',
+    artist: '', writers: '', producers: '', publisher: '', status: 'Unreleased (Complete)',
     genre: '', energy: 'Medium', mood: '', theme: '', vocal: 'Male Vox',
     label: '', splits: '', notes: '',
   });
+  const [categories, setCategories] = useState<string[]>([]);
   const [myTracks, setMyTracks] = useState<Track[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [editTrack, setEditTrack] = useState<Track | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Track>>({});
+  const [saving, setSaving] = useState(false);
   const { notif, notify } = useNotification();
 
   useEffect(() => {
-    if (profile) loadMyTracks();
+    if (profile) {
+      loadMyTracks();
+      loadCategories();
+    }
   }, [profile]);
+
+  async function loadCategories() {
+    const res = await fetch('/api/categories');
+    const json = await res.json();
+    if (json.categories) setCategories(json.categories.map((c: any) => c.name));
+  }
 
   async function loadMyTracks() {
     const supabase = createClient();
@@ -115,7 +130,7 @@ export default function UploadPage() {
         name,
         files: groupFiles,
         title: formatTitle(name),
-        artist: '', writers: '', producers: '',
+        artist: '', writers: '', producers: '', publisher: '',
         status: 'Unreleased (Complete)', genre: '', subgenre: '', bpm: '',
         energy: 'Medium', mood: '', theme: '', vocal: 'Male Vox', key: '',
         label: '', splits: '', downloadUrl: '', lyrics: '', notes: '',
@@ -133,6 +148,7 @@ export default function UploadPage() {
       artist: song.artist || sharedMeta.artist,
       writers: song.writers || sharedMeta.writers,
       producers: song.producers || sharedMeta.producers,
+      publisher: song.publisher || sharedMeta.publisher,
       status: sharedMeta.status,
       genre: sharedMeta.genre,
       energy: sharedMeta.energy,
@@ -165,6 +181,7 @@ export default function UploadPage() {
         artist: song.artist,
         writers: song.writers || null,
         producers: song.producers || null,
+        publisher: song.publisher || null,
         status: song.status,
         genre: song.genre,
         subgenre: song.subgenre || null,
@@ -245,6 +262,78 @@ export default function UploadPage() {
     setStep('upload');
     setSubmitting(false);
     loadMyTracks();
+  }
+
+  function genreCount(genre: string): number {
+    return genre ? genre.split(',').map(s => s.trim()).filter(Boolean).length : 0;
+  }
+
+  function primaryGenreIsCategory(genre: string): boolean {
+    if (!genre || categories.length === 0) return true; // don't block if categories haven't loaded
+    const primary = genre.split(',')[0].trim();
+    return categories.includes(primary);
+  }
+
+  function openEditModal(track: Track) {
+    setEditTrack(track);
+    setEditForm({
+      title: track.title,
+      artist: track.artist,
+      writers: track.writers || '',
+      producers: track.producers || '',
+      status: track.status,
+      genre: track.genre,
+      subgenre: track.subgenre || '',
+      bpm: track.bpm,
+      energy: track.energy,
+      mood: track.mood || '',
+      theme: track.theme || '',
+      vocal: track.vocal,
+      key: track.key || '',
+      label: track.label || '',
+      splits: track.splits || '',
+      lyrics: track.lyrics || '',
+      notes: track.notes || '',
+      download_url: track.download_url || '',
+    });
+  }
+
+  async function saveTrackEdit() {
+    if (!editTrack) return;
+    setSaving(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('tracks')
+      .update({
+        title: editForm.title,
+        artist: editForm.artist,
+        writers: editForm.writers || null,
+        producers: editForm.producers || null,
+        status: editForm.status,
+        genre: editForm.genre,
+        subgenre: editForm.subgenre || null,
+        bpm: editForm.bpm || null,
+        energy: editForm.energy,
+        mood: editForm.mood || null,
+        theme: editForm.theme || null,
+        vocal: editForm.vocal,
+        key: editForm.key || null,
+        label: editForm.label || null,
+        splits: editForm.splits || null,
+        lyrics: editForm.lyrics || null,
+        notes: editForm.notes || null,
+        download_url: editForm.download_url || null,
+      })
+      .eq('id', editTrack.id);
+
+    if (error) {
+      notify(`Error saving: ${error.message}`, 'error');
+    } else {
+      notify('Track updated successfully!', 'success');
+      setEditTrack(null);
+      loadMyTracks();
+    }
+    setSaving(false);
   }
 
   const formGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
@@ -362,14 +451,29 @@ export default function UploadPage() {
                 <input value={sharedMeta.producers} onChange={e => setSharedMeta(p => ({ ...p, producers: e.target.value }))} />
               </div>
               <div style={formGroupStyle}>
+                <label style={labelStyle}>Publisher *</label>
+                <select value={sharedMeta.publisher} onChange={e => setSharedMeta(p => ({ ...p, publisher: e.target.value }))} required>
+                  <option value="">Select Publisher...</option>
+                  {PUBLISHERS.map(p => <option key={p}>{p}</option>)}
+                </select>
+              </div>
+              <div style={formGroupStyle}>
                 <label style={labelStyle}>Status</label>
                 <select value={sharedMeta.status} onChange={e => setSharedMeta(p => ({ ...p, status: e.target.value }))}>
                   {TRACK_STATUSES.map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div style={formGroupStyle}>
-                <label style={labelStyle}>Genre(s) *</label>
-                <GenreTagInput value={sharedMeta.genre} onChange={v => setSharedMeta(p => ({ ...p, genre: v }))} placeholder="Type to add genres (5-10 recommended)..." />
+                <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 2 — first genre = category folder)</span></label>
+                <GenreTagInput value={sharedMeta.genre} onChange={v => setSharedMeta(p => ({ ...p, genre: v }))} placeholder="First genre = category folder, then add more..." />
+                {genreCount(sharedMeta.genre) === 1 && (
+                  <span style={{ fontSize: 11, color: 'var(--orange)' }}>Add at least one more genre</span>
+                )}
+                {genreCount(sharedMeta.genre) >= 1 && !primaryGenreIsCategory(sharedMeta.genre) && (
+                  <span style={{ fontSize: 11, color: 'var(--red)' }}>
+                    First genre &ldquo;{sharedMeta.genre.split(',')[0].trim()}&rdquo; is not an existing category. Songs will go under the first matching category.
+                  </span>
+                )}
               </div>
               <div style={formGroupStyle}>
                 <label style={labelStyle}>Energy Level</label>
@@ -407,9 +511,19 @@ export default function UploadPage() {
 
             <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
               <button onClick={() => setStep('upload')} style={btnSecStyle}>Back</button>
-              <button onClick={applySharedMeta} disabled={!sharedMeta.artist} style={{ ...btnStyle, opacity: !sharedMeta.artist ? 0.5 : 1 }}>
+              <button onClick={applySharedMeta} disabled={!sharedMeta.artist || !sharedMeta.publisher || genreCount(sharedMeta.genre) < 2} style={{ ...btnStyle, opacity: (!sharedMeta.artist || !sharedMeta.publisher || genreCount(sharedMeta.genre) < 2) ? 0.5 : 1 }}>
                 Next: Review Songs
               </button>
+              {genreCount(sharedMeta.genre) < 2 && (
+                <span style={{ fontSize: 12, color: 'var(--orange)', marginLeft: 8, alignSelf: 'center' }}>
+                  Please select at least 2 genres
+                </span>
+              )}
+              {!sharedMeta.publisher && (
+                <span style={{ fontSize: 12, color: 'var(--orange)', marginLeft: 8, alignSelf: 'center' }}>
+                  Publisher is required
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -496,9 +610,21 @@ export default function UploadPage() {
                         <label style={labelStyle}>Producer(s)</label>
                         <input value={song.producers} onChange={e => updateSong(i, { producers: e.target.value })} />
                       </div>
+                      <div style={formGroupStyle}>
+                        <label style={labelStyle}>Publisher *</label>
+                        <select value={song.publisher} onChange={e => updateSong(i, { publisher: e.target.value })}>
+                          <option value="">Select Publisher...</option>
+                          {PUBLISHERS.map(p => <option key={p}>{p}</option>)}
+                        </select>
+                      </div>
                       <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
-                        <label style={labelStyle}>Genre(s)</label>
+                        <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 2 required)</span></label>
                         <GenreTagInput value={song.genre} onChange={v => updateSong(i, { genre: v })} />
+                        {genreCount(song.genre) < 2 && (
+                          <span style={{ fontSize: 11, color: 'var(--orange)' }}>
+                            {genreCount(song.genre) === 0 ? 'Select at least 2 genres' : 'Add at least one more genre'}
+                          </span>
+                        )}
                       </div>
                       <div style={formGroupStyle}>
                         <label style={labelStyle}>Sub-Genre</label>
@@ -578,18 +704,31 @@ export default function UploadPage() {
 
             <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
               <button onClick={() => setStep('shared')} style={btnSecStyle}>Back</button>
-              <button
-                onClick={submitAll}
-                disabled={submitting || songGroups.length === 0}
-                style={{
-                  ...btnStyle,
-                  background: 'var(--green)', color: '#fff', padding: '12px 32px',
-                  opacity: submitting || songGroups.length === 0 ? 0.5 : 1,
-                  cursor: submitting ? 'wait' : songGroups.length === 0 ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {submitting ? 'Submitting...' : `Submit ${songGroups.length} Song${songGroups.length !== 1 ? 's' : ''} to Catalog`}
-              </button>
+              {(() => {
+                const hasGenreIssue = songGroups.some(s => genreCount(s.genre) < 2);
+                const disabled = submitting || songGroups.length === 0 || hasGenreIssue;
+                return (
+                  <>
+                    <button
+                      onClick={submitAll}
+                      disabled={disabled}
+                      style={{
+                        ...btnStyle,
+                        background: 'var(--green)', color: '#fff', padding: '12px 32px',
+                        opacity: disabled ? 0.5 : 1,
+                        cursor: submitting ? 'wait' : disabled ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {submitting ? 'Submitting...' : `Submit ${songGroups.length} Song${songGroups.length !== 1 ? 's' : ''} to Catalog`}
+                    </button>
+                    {hasGenreIssue && (
+                      <span style={{ fontSize: 12, color: 'var(--orange)', alignSelf: 'center' }}>
+                        Each song needs at least 2 genres
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -606,7 +745,7 @@ export default function UploadPage() {
             }}>
               <thead>
                 <tr>
-                  {['Title / Artist', 'Status', 'Genre', 'Sync Status', 'Date Added'].map(h => (
+                  {['Title / Artist', 'Status', 'Genre', 'Sync Status', 'Date Added', ''].map(h => (
                     <th key={h} style={{
                       padding: '12px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600,
                       textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--dim)',
@@ -644,12 +783,134 @@ export default function UploadPage() {
                     <td style={{ padding: '12px 14px', fontSize: 13, color: 'var(--dim)', borderBottom: '1px solid var(--border)' }}>
                       {t.date_added}
                     </td>
+                    <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                      <button onClick={() => openEditModal(t)} style={{
+                        padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
+                        background: 'var(--surface-solid)', color: 'var(--text)', fontSize: 12,
+                        fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                        boxShadow: 'var(--shadow-sm)', whiteSpace: 'nowrap',
+                      }}>
+                        Edit
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+
+        {/* Edit Track Modal */}
+        <Modal open={!!editTrack} onClose={() => setEditTrack(null)}>
+          {editTrack && (
+            <div>
+              <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, marginBottom: 4 }}>
+                Edit Track
+              </h2>
+              <p style={{ color: 'var(--dim)', fontSize: 13, marginBottom: 20 }}>
+                Update the details for &ldquo;{editTrack.title}&rdquo;
+              </p>
+              <div className="grid-2col">
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Song Title *</label>
+                  <input value={editForm.title || ''} onChange={e => setEditForm(p => ({ ...p, title: e.target.value }))} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Artist(s) *</label>
+                  <input value={editForm.artist || ''} onChange={e => setEditForm(p => ({ ...p, artist: e.target.value }))} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Writer(s)</label>
+                  <input value={editForm.writers || ''} onChange={e => setEditForm(p => ({ ...p, writers: e.target.value }))} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Producer(s)</label>
+                  <input value={editForm.producers || ''} onChange={e => setEditForm(p => ({ ...p, producers: e.target.value }))} />
+                </div>
+                <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
+                  <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 2 required)</span></label>
+                  <GenreTagInput value={editForm.genre || ''} onChange={v => setEditForm(p => ({ ...p, genre: v }))} />
+                  {genreCount(editForm.genre || '') < 2 && (
+                    <span style={{ fontSize: 11, color: 'var(--orange)' }}>
+                      {genreCount(editForm.genre || '') === 0 ? 'Select at least 2 genres' : 'Add at least one more genre'}
+                    </span>
+                  )}
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Sub-Genre</label>
+                  <SubgenreInput value={editForm.subgenre || ''} onChange={v => setEditForm(p => ({ ...p, subgenre: v }))} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Status</label>
+                  <select value={editForm.status || ''} onChange={e => setEditForm(p => ({ ...p, status: e.target.value as Track['status'] }))}>
+                    {TRACK_STATUSES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>BPM</label>
+                  <input value={editForm.bpm || ''} onChange={e => setEditForm(p => ({ ...p, bpm: e.target.value ? parseInt(e.target.value) : null }))} type="number" min="40" max="220" />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Key</label>
+                  <input value={editForm.key || ''} onChange={e => setEditForm(p => ({ ...p, key: e.target.value }))} placeholder="e.g. Am, C#" />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Energy Level</label>
+                  <select value={editForm.energy || ''} onChange={e => setEditForm(p => ({ ...p, energy: e.target.value as Track['energy'] }))}>
+                    {ENERGY_LEVELS.map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Mood / Vibe</label>
+                  <input value={editForm.mood || ''} onChange={e => setEditForm(p => ({ ...p, mood: e.target.value }))} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Lyric Theme</label>
+                  <input value={editForm.theme || ''} onChange={e => setEditForm(p => ({ ...p, theme: e.target.value }))} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Vocal Type</label>
+                  <select value={editForm.vocal || ''} onChange={e => setEditForm(p => ({ ...p, vocal: e.target.value as Track['vocal'] }))}>
+                    {VOCAL_TYPES.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Record Label</label>
+                  <input value={editForm.label || ''} onChange={e => setEditForm(p => ({ ...p, label: e.target.value }))} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Splits</label>
+                  <input value={editForm.splits || ''} onChange={e => setEditForm(p => ({ ...p, splits: e.target.value }))} />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Download Link</label>
+                  <input value={editForm.download_url || ''} onChange={e => setEditForm(p => ({ ...p, download_url: e.target.value }))} placeholder="DISCO, Google Drive, Box URL" />
+                </div>
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>Lyrics</label>
+                  <textarea value={editForm.lyrics || ''} onChange={e => setEditForm(p => ({ ...p, lyrics: e.target.value }))} rows={3} />
+                </div>
+                <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
+                  <label style={labelStyle}>Notes / Sync Target</label>
+                  <textarea value={editForm.notes || ''} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+                </div>
+              </div>
+              <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+                <button
+                  onClick={saveTrackEdit}
+                  disabled={saving || !editForm.title || !editForm.artist || genreCount(editForm.genre || '') < 2}
+                  style={{
+                    ...btnStyle,
+                    opacity: (saving || !editForm.title || !editForm.artist || genreCount(editForm.genre || '') < 2) ? 0.5 : 1,
+                  }}
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button onClick={() => setEditTrack(null)} style={btnSecStyle}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </Modal>
 
         <Notification {...notif} />
       </div>

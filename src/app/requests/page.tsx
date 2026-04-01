@@ -1,11 +1,29 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ENERGY_LEVELS, VOCAL_TYPES } from '@/lib/types';
+import { ENERGY_LEVELS, VOCAL_TYPES, PUBLISHERS } from '@/lib/types';
 import TopNav from '@/components/nav/TopNav';
 import GenreTagInput from '@/components/ui/GenreTagInput';
 import Notification, { useNotification } from '@/components/ui/Notification';
 import { useAuth } from '@/hooks/useAuth';
+
+type BriefStatus = 'Open' | 'In Review' | 'Filled' | 'Closed';
+
+const BRIEF_STATUSES: BriefStatus[] = ['Open', 'In Review', 'Filled', 'Closed'];
+
+const briefStatusColor: Record<BriefStatus, string> = {
+  'Open': 'var(--green)',
+  'In Review': 'var(--orange)',
+  'Filled': 'var(--accent)',
+  'Closed': 'var(--dim)',
+};
+
+const briefStatusBg: Record<BriefStatus, string> = {
+  'Open': 'rgba(5,150,105,0.1)',
+  'In Review': 'rgba(217,119,6,0.1)',
+  'Filled': 'rgba(26,26,46,0.08)',
+  'Closed': 'rgba(107,114,128,0.1)',
+};
 
 interface MusicBrief {
   id: string;
@@ -33,6 +51,8 @@ interface MusicBrief {
   theme: string | null;
   contact_name: string | null;
   contact_email: string | null;
+  status: BriefStatus | null;
+  user_id: string | null;
   created_at: string;
 }
 
@@ -66,10 +86,14 @@ export default function RequestsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [briefSubmissions, setBriefSubmissions] = useState<Record<string, BriefSubmission[]>>({});
   const [trackSearch, setTrackSearch] = useState('');
-  // Upload state
-  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
-  const [uploadMeta, setUploadMeta] = useState({ title: '', artist: '', genre: '', vocal: 'Male Vox', energy: 'Medium', mood: '', notes: '' });
+  // Upload state — multi-song grouping
+  const [uploadSongs, setUploadSongs] = useState<{ name: string; title: string; artist: string; files: File[] }[]>([]);
+  const [uploadShared, setUploadShared] = useState({ producers: '', writers: '', publisher: '', genre: '', vocal: 'Male Vox', energy: 'Medium', mood: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [editBrief, setEditBrief] = useState<MusicBrief | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
   const { notif, notify } = useNotification();
 
   useEffect(() => { loadBriefs(); }, []);
@@ -109,8 +133,8 @@ export default function RequestsPage() {
     setSelectedTrackIds([]);
     setSubmitNotes('');
     setTrackSearch('');
-    setUploadFiles([]);
-    setUploadMeta({ title: '', artist: '', genre: '', vocal: 'Male Vox', energy: 'Medium', mood: '', notes: '' });
+    setUploadSongs([]);
+    setUploadShared({ producers: profile?.full_name || '', writers: '', publisher: '', genre: '', vocal: 'Male Vox', energy: 'Medium', mood: '' });
     await loadTracks();
   }
 
@@ -131,39 +155,51 @@ export default function RequestsPage() {
       if (!res.ok) notify(`Error: ${json.error}`, 'error');
       else {
         notify(`${selectedTrackIds.length} track(s) submitted to brief!`, 'success');
+        const briefId = submitBriefId;
         setSubmitBriefId(null);
-        loadBriefSubmissions(submitBriefId);
+        loadBriefSubmissions(briefId);
       }
     } catch { notify('Failed to submit.', 'error'); }
     setSubmitting(false);
   }
 
-  // Upload new files and submit to brief
+  // Upload multiple songs to brief
   async function handleUploadToBrief() {
-    if (!submitBriefId || uploadFiles.length === 0 || !uploadMeta.title || !uploadMeta.artist) {
-      notify('Add files and fill in title and artist.', 'error');
+    if (!submitBriefId || uploadSongs.length === 0) {
+      notify('Add files first.', 'error');
       return;
     }
-    setSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append('brief_id', submitBriefId);
-      formData.append('title', uploadMeta.title);
-      formData.append('artist', uploadMeta.artist);
-      formData.append('genre', uploadMeta.genre || 'Other');
-      formData.append('vocal', uploadMeta.vocal);
-      formData.append('energy', uploadMeta.energy);
-      if (uploadMeta.mood) formData.append('mood', uploadMeta.mood);
-      if (uploadMeta.notes) formData.append('notes', uploadMeta.notes);
-      uploadFiles.forEach(f => formData.append('files', f));
+    // Check each song has a title
+    const missing = uploadSongs.find(s => !s.title);
+    if (missing) { notify('Every song needs a title.', 'error'); return; }
 
-      const res = await fetch('/api/brief-upload', { method: 'POST', body: formData });
-      const json = await res.json();
-      if (!res.ok) notify(`Error: ${json.error}`, 'error');
-      else {
-        notify(`"${uploadMeta.title}" uploaded and submitted to brief!`, 'success');
+    setSubmitting(true);
+    let successCount = 0;
+    try {
+      for (const song of uploadSongs) {
+        const formData = new FormData();
+        formData.append('brief_id', submitBriefId);
+        formData.append('title', song.title);
+        formData.append('artist', song.artist || 'TBD');
+        formData.append('genre', uploadShared.genre || 'Other');
+        formData.append('vocal', uploadShared.vocal);
+        formData.append('energy', uploadShared.energy);
+        if (uploadShared.producers) formData.append('producers', uploadShared.producers);
+        if (uploadShared.writers) formData.append('writers', uploadShared.writers);
+        if (uploadShared.publisher) formData.append('publisher', uploadShared.publisher);
+        if (uploadShared.mood) formData.append('mood', uploadShared.mood);
+        song.files.forEach(f => formData.append('files', f));
+
+        const res = await fetch('/api/brief-upload', { method: 'POST', body: formData });
+        if (res.ok) successCount++;
+      }
+      if (successCount > 0) {
+        notify(`${successCount} song${successCount !== 1 ? 's' : ''} uploaded and submitted to brief!`, 'success');
+        const briefId = submitBriefId;
         setSubmitBriefId(null);
-        loadBriefSubmissions(submitBriefId);
+        loadBriefSubmissions(briefId);
+      } else {
+        notify('Upload failed. Please try again.', 'error');
       }
     } catch { notify('Upload failed. Please try again.', 'error'); }
     setSubmitting(false);
@@ -173,21 +209,52 @@ export default function RequestsPage() {
     setSelectedTrackIds(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
   }
 
+  function extractSongName(fileName: string): string {
+    let name = fileName.replace(/\.[^.]+$/, '');
+    name = name.replace(/[_\s-]*(main|clean|inst|instrumental|acap|acapella|vocal|mix|master|final|v\d+)$/i, '');
+    name = name.replace(/[_\s-]+$/, '');
+    return name || fileName;
+  }
+
+  function formatTitle(songName: string): string {
+    return songName.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+  }
+
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const newFiles = Array.from(e.target.files || []);
-    setUploadFiles(prev => [...prev, ...newFiles]);
-    // Auto-fill title from first file name
-    if (!uploadMeta.title && newFiles.length > 0) {
-      let name = newFiles[0].name.replace(/\.[^.]+$/, '');
-      name = name.replace(/[_\s-]*(main|clean|inst|instrumental|acap|acapella|vocal|mix|master|final|v\d+)$/i, '');
-      name = name.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
-      setUploadMeta(p => ({ ...p, title: name }));
+    if (newFiles.length === 0) return;
+
+    // Group new files by song name
+    const groups: Record<string, File[]> = {};
+    for (const file of newFiles) {
+      const songName = extractSongName(file.name);
+      if (!groups[songName]) groups[songName] = [];
+      groups[songName].push(file);
     }
+
+    // Merge with existing songs or create new ones
+    setUploadSongs(prev => {
+      const updated = [...prev];
+      for (const [name, files] of Object.entries(groups)) {
+        const existing = updated.find(s => s.name === name);
+        if (existing) {
+          existing.files = [...existing.files, ...files];
+        } else {
+          updated.push({ name, title: formatTitle(name), artist: '', files });
+        }
+      }
+      return updated;
+    });
+
     if (e.target) e.target.value = '';
   }
 
-  function removeUploadFile(index: number) {
-    setUploadFiles(prev => prev.filter((_, i) => i !== index));
+  function removeSong(index: number) {
+    setUploadSongs(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function updateSongField(index: number, field: 'title' | 'artist', value: string) {
+    setUploadSongs(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
   }
 
   async function handleExpand(briefId: string) {
@@ -197,6 +264,89 @@ export default function RequestsPage() {
       loadBriefSubmissions(briefId);
     }
   }
+
+  function openEditBrief(brief: MusicBrief) {
+    setEditBrief(brief);
+    setEditForm({
+      project: brief.project || '',
+      brand: brief.brand || '',
+      campaign_type: brief.campaign_type || '',
+      deadline: brief.deadline || '',
+      creative_themes: brief.creative_themes || '',
+      emotions: brief.emotions || '',
+      story_context: brief.story_context || '',
+      genre: brief.genre || '',
+      subgenre: brief.subgenre || '',
+      genre_blends: brief.genre_blends || '',
+      energy: brief.energy || '',
+      vocal: brief.vocal || '',
+      bpm_min: brief.bpm_min?.toString() || '',
+      bpm_max: brief.bpm_max?.toString() || '',
+      instrumentation: brief.instrumentation || '',
+      reference: brief.reference || '',
+      reference_artists: brief.reference_artists || '',
+      description: brief.description || '',
+      mood: brief.mood || '',
+      contact_name: brief.contact_name || '',
+      contact_email: brief.contact_email || '',
+    });
+  }
+
+  async function saveEditBrief() {
+    if (!editBrief) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch('/api/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editBrief.id,
+          ...editForm,
+          bpm_min: editForm.bpm_min ? parseInt(editForm.bpm_min) : null,
+          bpm_max: editForm.bpm_max ? parseInt(editForm.bpm_max) : null,
+        }),
+      });
+      if (res.ok) {
+        notify('Brief updated!', 'success');
+        setEditBrief(null);
+        loadBriefs();
+      } else {
+        const json = await res.json();
+        notify(`Error: ${json.error}`, 'error');
+      }
+    } catch {
+      notify('Failed to save.', 'error');
+    }
+    setSavingEdit(false);
+  }
+
+  // Can edit if admin or if user owns the brief
+  function canEditBrief(brief: MusicBrief): boolean {
+    if (!profile) return false;
+    if (profile.role === 'admin') return true;
+    return brief.user_id === profile.id;
+  }
+
+  async function updateBriefStatus(briefId: string, newStatus: BriefStatus) {
+    try {
+      const res = await fetch('/api/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: briefId, status: newStatus }),
+      });
+      if (res.ok) {
+        setBriefs(prev => prev.map(b => b.id === briefId ? { ...b, status: newStatus } : b));
+        notify(`Brief status updated to ${newStatus}`, 'info');
+      } else {
+        const json = await res.json();
+        notify(`Error: ${json.error}`, 'error');
+      }
+    } catch {
+      notify('Failed to update status.', 'error');
+    }
+  }
+
+  const filteredBriefs = statusFilter === 'All' ? briefs : briefs.filter(b => (b.status || 'Open') === statusFilter);
 
   if (authLoading || !profile) {
     return (
@@ -238,6 +388,31 @@ export default function RequestsPage() {
           </p>
         </div>
 
+        {/* Status filter tabs */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+          {['All', ...BRIEF_STATUSES].map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              style={{
+                padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+                border: statusFilter === s ? 'none' : '1px solid var(--border)',
+                background: statusFilter === s ? 'var(--accent)' : 'var(--surface-solid)',
+                color: statusFilter === s ? '#fff' : 'var(--dim)',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              {s}
+              {s !== 'All' && (
+                <span style={{ marginLeft: 4, opacity: 0.7 }}>
+                  ({briefs.filter(b => (b.status || 'Open') === s).length})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <p style={{ color: 'var(--dim)', fontSize: 14 }}>Loading briefs...</p>
         ) : briefs.length === 0 ? (
@@ -246,7 +421,7 @@ export default function RequestsPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {briefs.map((b) => {
+            {filteredBriefs.map((b) => {
               const isExpanded = expandedId === b.id;
               const subs = briefSubmissions[b.id] || [];
               return (
@@ -264,13 +439,52 @@ export default function RequestsPage() {
                         <span style={{ fontWeight: 700, fontSize: 15 }}>
                           {b.project || b.brand || b.genre || 'Untitled Brief'}
                         </span>
+                        {/* Status badge */}
+                        <span style={{
+                          padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                          background: briefStatusBg[(b.status || 'Open') as BriefStatus],
+                          color: briefStatusColor[(b.status || 'Open') as BriefStatus],
+                        }}>
+                          {b.status || 'Open'}
+                        </span>
+                        {/* Admin inline status change */}
+                        {profile.role === 'admin' && (
+                          <select
+                            value={b.status || 'Open'}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => { e.stopPropagation(); updateBriefStatus(b.id, e.target.value as BriefStatus); }}
+                            style={{
+                              padding: '2px 6px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                              border: '1px solid var(--border)', background: 'var(--surface-solid)',
+                              color: 'var(--dim)', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                            }}
+                          >
+                            {BRIEF_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        )}
                         {b.campaign_type && <span style={tagStyle}>{b.campaign_type}</span>}
                         {b.deadline && (
                           <span style={{ ...tagStyle, background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>Due: {b.deadline}</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 8 }}>
-                        From <strong>{b.user_name || 'Unknown'}</strong> &bull; {new Date(b.created_at).toLocaleDateString()}
+                      <div style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>
+                          From <strong>{b.user_name || 'Unknown'}</strong>
+                          {b.user_email && <span> ({b.user_email})</span>}
+                          {' '}&bull; {new Date(b.created_at).toLocaleDateString()}
+                        </span>
+                        {canEditBrief(b) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEditBrief(b); }}
+                            style={{
+                              padding: '2px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                              background: 'var(--surface-solid)', color: 'var(--dim)', fontSize: 11,
+                              fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                         {b.genre && b.genre.split(',').map(g => <span key={g} style={tagStyle}>{g.trim()}</span>)}
@@ -488,7 +702,7 @@ export default function RequestsPage() {
                         Tap to select audio files
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--dim)' }}>
-                        WAV, AIFF, or MP3 &bull; Drag &amp; drop on desktop
+                        WAV, AIFF, or MP3 &bull; Select multiple files &bull; Auto-groups by song name
                       </div>
                       <input
                         ref={fileInputRef}
@@ -500,91 +714,231 @@ export default function RequestsPage() {
                       />
                     </div>
 
-                    {/* Selected files */}
-                    {uploadFiles.length > 0 && (
+                    {/* Detected songs */}
+                    {uploadSongs.length > 0 && (
                       <div style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--dim)', textTransform: 'uppercase', marginBottom: 6 }}>
-                          {uploadFiles.length} file{uploadFiles.length !== 1 ? 's' : ''} selected
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--green)', textTransform: 'uppercase', marginBottom: 8 }}>
+                          {uploadSongs.length} song{uploadSongs.length !== 1 ? 's' : ''} detected
                         </div>
-                        {uploadFiles.map((f, i) => (
+                        {uploadSongs.map((song, i) => (
                           <div key={i} style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            padding: '8px 10px', background: 'var(--bg)', borderRadius: 8, marginBottom: 4, fontSize: 12,
+                            padding: '10px 12px', background: 'var(--bg)', borderRadius: 10,
+                            marginBottom: 8, border: '1px solid var(--border)',
                           }}>
-                            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                              <span style={{ color: 'var(--dim)' }}>{(f.size / 1024 / 1024).toFixed(1)} MB</span>
-                              <button onClick={() => removeUploadFile(i)} style={{
-                                background: 'none', border: 'none', color: 'var(--red)', fontSize: 16, cursor: 'pointer', padding: '0 4px', lineHeight: 1,
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                              <input
+                                value={song.title}
+                                onChange={e => updateSongField(i, 'title', e.target.value)}
+                                style={{ flex: 1, fontWeight: 600, fontSize: 13, padding: '4px 8px', borderRadius: 6 }}
+                                placeholder="Song title *"
+                              />
+                              <button onClick={() => removeSong(i)} style={{
+                                background: 'none', border: 'none', color: 'var(--red)', fontSize: 16,
+                                cursor: 'pointer', padding: '0 6px', lineHeight: 1, flexShrink: 0,
                               }}>&times;</button>
+                            </div>
+                            <input
+                              value={song.artist}
+                              onChange={e => updateSongField(i, 'artist', e.target.value)}
+                              style={{ width: '100%', fontSize: 12, padding: '4px 8px', borderRadius: 6, marginBottom: 4 }}
+                              placeholder="Artist name (can be different per song)"
+                            />
+                            <div style={{ fontSize: 11, color: 'var(--dim)' }}>
+                              {song.files.map(f => f.name).join(', ')}
+                              <span style={{ marginLeft: 6 }}>({(song.files.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1)} MB)</span>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
 
-                    {/* Track metadata */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div>
-                        <label style={labelStyle}>Song Title *</label>
-                        <input value={uploadMeta.title} onChange={e => setUploadMeta(p => ({ ...p, title: e.target.value }))} placeholder="Song title" style={{ width: '100%' }} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Artist *</label>
-                        <input value={uploadMeta.artist} onChange={e => setUploadMeta(p => ({ ...p, artist: e.target.value }))} placeholder="Artist name" style={{ width: '100%' }} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Genre</label>
-                        <GenreTagInput value={uploadMeta.genre} onChange={v => setUploadMeta(p => ({ ...p, genre: v }))} placeholder="Select genre..." />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {/* Shared metadata for all songs */}
+                    {uploadSongs.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--dim)', textTransform: 'uppercase' }}>
+                          Shared Info (applies to all {uploadSongs.length} songs)
+                        </div>
+                        <div className="grid-2col">
+                          <div>
+                            <label style={labelStyle}>Producer(s)</label>
+                            <input value={uploadShared.producers} onChange={e => setUploadShared(p => ({ ...p, producers: e.target.value }))} placeholder="Your name auto-filled" style={{ width: '100%' }} />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Writer(s)</label>
+                            <input value={uploadShared.writers} onChange={e => setUploadShared(p => ({ ...p, writers: e.target.value }))} placeholder="Songwriter names" style={{ width: '100%' }} />
+                          </div>
+                        </div>
                         <div>
-                          <label style={labelStyle}>Vocal Type</label>
-                          <select value={uploadMeta.vocal} onChange={e => setUploadMeta(p => ({ ...p, vocal: e.target.value }))} style={{ width: '100%' }}>
-                            {VOCAL_TYPES.map(v => <option key={v}>{v}</option>)}
+                          <label style={labelStyle}>Publisher</label>
+                          <select value={uploadShared.publisher} onChange={e => setUploadShared(p => ({ ...p, publisher: e.target.value }))} style={{ width: '100%' }}>
+                            <option value="">Select Publisher...</option>
+                            {PUBLISHERS.map(p => <option key={p}>{p}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label style={labelStyle}>Energy</label>
-                          <select value={uploadMeta.energy} onChange={e => setUploadMeta(p => ({ ...p, energy: e.target.value }))} style={{ width: '100%' }}>
-                            {ENERGY_LEVELS.map(e => <option key={e}>{e}</option>)}
-                          </select>
+                          <label style={labelStyle}>Genre</label>
+                          <GenreTagInput value={uploadShared.genre} onChange={v => setUploadShared(p => ({ ...p, genre: v }))} placeholder="Select genre..." />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                          <div>
+                            <label style={labelStyle}>Vocal Type</label>
+                            <select value={uploadShared.vocal} onChange={e => setUploadShared(p => ({ ...p, vocal: e.target.value }))} style={{ width: '100%' }}>
+                              {VOCAL_TYPES.map(v => <option key={v}>{v}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Energy</label>
+                            <select value={uploadShared.energy} onChange={e => setUploadShared(p => ({ ...p, energy: e.target.value }))} style={{ width: '100%' }}>
+                              {ENERGY_LEVELS.map(e => <option key={e}>{e}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Mood</label>
+                          <input value={uploadShared.mood} onChange={e => setUploadShared(p => ({ ...p, mood: e.target.value }))} placeholder="e.g. Confident, Energetic" style={{ width: '100%' }} />
                         </div>
                       </div>
-                      <div>
-                        <label style={labelStyle}>Mood</label>
-                        <input value={uploadMeta.mood} onChange={e => setUploadMeta(p => ({ ...p, mood: e.target.value }))} placeholder="e.g. Confident, Energetic" style={{ width: '100%' }} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Notes</label>
-                        <textarea value={uploadMeta.notes} onChange={e => setUploadMeta(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Why this track fits the brief..." style={{ width: '100%' }} />
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 12, color: 'var(--dim)' }}>
-                        {uploadFiles.length} file{uploadFiles.length !== 1 ? 's' : ''}
+                        {uploadSongs.length} song{uploadSongs.length !== 1 ? 's' : ''} &bull; {uploadSongs.reduce((s, song) => s + song.files.length, 0)} files
                       </span>
                       <div style={{ display: 'flex', gap: 10 }}>
                         <button onClick={() => setSubmitBriefId(null)} style={{
                           padding: '10px 16px', borderRadius: 8, border: '1px solid var(--border)',
                           background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                         }}>Cancel</button>
-                        <button onClick={handleUploadToBrief} disabled={submitting || uploadFiles.length === 0 || !uploadMeta.title || !uploadMeta.artist} style={{
+                        <button onClick={handleUploadToBrief} disabled={submitting || uploadSongs.length === 0} style={{
                           padding: '10px 20px', borderRadius: 8, border: 'none',
                           background: 'var(--green)', color: '#fff', fontSize: 13, fontWeight: 600,
                           cursor: submitting ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif",
-                          opacity: submitting || uploadFiles.length === 0 || !uploadMeta.title || !uploadMeta.artist ? 0.6 : 1,
+                          opacity: submitting || uploadSongs.length === 0 ? 0.6 : 1,
                         }}>
-                          {submitting ? 'Uploading...' : 'Upload & Submit'}
+                          {submitting ? 'Uploading...' : `Upload ${uploadSongs.length} Song${uploadSongs.length !== 1 ? 's' : ''}`}
                         </button>
                       </div>
                     </div>
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Edit Brief Modal */}
+        {editBrief && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000,
+          }} onClick={() => setEditBrief(null)}>
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: 'var(--surface-solid)', borderRadius: '16px 16px 0 0',
+                width: '100%', maxWidth: 600, maxHeight: '90vh',
+                display: 'flex', flexDirection: 'column',
+                boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)',
+              }}
+            >
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+                <h3 style={{ fontSize: 17, fontWeight: 700 }}>Edit Brief</h3>
+                <p style={{ fontSize: 12, color: 'var(--dim)', marginTop: 4 }}>
+                  Submitted by {editBrief.user_name || 'Unknown'}{editBrief.user_email ? ` (${editBrief.user_email})` : ''}
+                </p>
+              </div>
+              <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div className="grid-2col">
+                    <div>
+                      <label style={labelStyle}>Project Name</label>
+                      <input value={editForm.project} onChange={e => setEditForm(p => ({ ...p, project: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Brand / Client</label>
+                      <input value={editForm.brand} onChange={e => setEditForm(p => ({ ...p, brand: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Campaign Type</label>
+                      <input value={editForm.campaign_type} onChange={e => setEditForm(p => ({ ...p, campaign_type: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Deadline</label>
+                      <input value={editForm.deadline} onChange={e => setEditForm(p => ({ ...p, deadline: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Creative Themes</label>
+                    <textarea value={editForm.creative_themes} onChange={e => setEditForm(p => ({ ...p, creative_themes: e.target.value }))} rows={2} style={{ width: '100%' }} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Emotions / Feel</label>
+                    <input value={editForm.emotions} onChange={e => setEditForm(p => ({ ...p, emotions: e.target.value }))} style={{ width: '100%' }} />
+                  </div>
+                  <div className="grid-2col">
+                    <div>
+                      <label style={labelStyle}>Genre</label>
+                      <GenreTagInput value={editForm.genre} onChange={v => setEditForm(p => ({ ...p, genre: v }))} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Energy</label>
+                      <select value={editForm.energy} onChange={e => setEditForm(p => ({ ...p, energy: e.target.value }))} style={{ width: '100%' }}>
+                        <option value="">—</option>
+                        {ENERGY_LEVELS.map(e => <option key={e}>{e}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Vocal Type</label>
+                      <select value={editForm.vocal} onChange={e => setEditForm(p => ({ ...p, vocal: e.target.value }))} style={{ width: '100%' }}>
+                        <option value="">—</option>
+                        {VOCAL_TYPES.map(v => <option key={v}>{v}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Mood</label>
+                      <input value={editForm.mood || ''} onChange={e => setEditForm(p => ({ ...p, mood: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Description / Notes</label>
+                    <textarea value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} rows={3} style={{ width: '100%' }} />
+                  </div>
+                  <div className="grid-2col">
+                    <div>
+                      <label style={labelStyle}>Reference Tracks</label>
+                      <input value={editForm.reference} onChange={e => setEditForm(p => ({ ...p, reference: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Reference Artists</label>
+                      <input value={editForm.reference_artists} onChange={e => setEditForm(p => ({ ...p, reference_artists: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Contact Name</label>
+                      <input value={editForm.contact_name} onChange={e => setEditForm(p => ({ ...p, contact_name: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Contact Email</label>
+                      <input value={editForm.contact_email} onChange={e => setEditForm(p => ({ ...p, contact_email: e.target.value }))} style={{ width: '100%' }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setEditBrief(null)} style={{
+                  padding: '10px 16px', borderRadius: 8, border: '1px solid var(--border)',
+                  background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                }}>Cancel</button>
+                <button onClick={saveEditBrief} disabled={savingEdit} style={{
+                  padding: '10px 20px', borderRadius: 8, border: 'none',
+                  background: 'var(--green)', color: '#fff', fontSize: 13, fontWeight: 600,
+                  cursor: savingEdit ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  opacity: savingEdit ? 0.6 : 1,
+                }}>
+                  {savingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
             </div>
           </div>
         )}

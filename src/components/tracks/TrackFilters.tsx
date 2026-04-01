@@ -16,6 +16,9 @@ interface TrackFiltersProps {
   writerProducer: string;
   onWriterProducerChange: (v: string) => void;
   writerProducerOptions: string[];
+  publisher: string;
+  onPublisherChange: (v: string) => void;
+  publisherOptions: string[];
 }
 
 export default function TrackFilters(props: TrackFiltersProps) {
@@ -59,6 +62,10 @@ export default function TrackFilters(props: TrackFiltersProps) {
       <select style={selectStyle} value={props.writerProducer} onChange={e => props.onWriterProducerChange(e.target.value)}>
         <option value="">All Writers/Producers</option>
         {props.writerProducerOptions.map(wp => <option key={wp}>{wp}</option>)}
+      </select>
+      <select style={selectStyle} value={props.publisher} onChange={e => props.onPublisherChange(e.target.value)}>
+        <option value="">All Publishers</option>
+        {props.publisherOptions.map(p => <option key={p}>{p}</option>)}
       </select>
     </div>
   );

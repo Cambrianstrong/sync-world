@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Track, ActivityItem } from '@/lib/types';
-import { GENRES, ENERGY_LEVELS, VOCAL_TYPES, TRACK_STATUSES } from '@/lib/types';
+import { GENRES, ENERGY_LEVELS, VOCAL_TYPES, TRACK_STATUSES, PUBLISHERS } from '@/lib/types';
 import TopNav from '@/components/nav/TopNav';
+import GenreTagInput from '@/components/ui/GenreTagInput';
+import SubgenreInput from '@/components/ui/SubgenreInput';
 import StatCard from '@/components/ui/StatCard';
 import Badge, { statusBadgeVariant, syncBadgeVariant } from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import Notification, { useNotification } from '@/components/ui/Notification';
 import { useAuth } from '@/hooks/useAuth';
+import { useAudio } from '@/contexts/AudioContext';
+import { PlayIcon, PauseIcon, LoadingIcon } from '@/components/ui/Icons';
 import Link from 'next/link';
 
 export default function AdminPage() {
@@ -20,11 +24,54 @@ export default function AdminPage() {
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string | boolean | number | null>>({});
   const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; name: string; color: string; sort_order: number }[]>([]);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatColor, setNewCatColor] = useState('');
+  const [showCatManager, setShowCatManager] = useState(false);
+  const [trackSearch, setTrackSearch] = useState('');
   const { notif, notify } = useNotification();
+  const { track: currentTrack, playing, loading: audioLoading, play, pause } = useAudio();
 
   useEffect(() => {
     loadData();
+    loadCategories();
   }, []);
+
+  async function loadCategories() {
+    const res = await fetch('/api/categories');
+    const json = await res.json();
+    if (json.categories) setCategories(json.categories);
+  }
+
+  async function addCategory() {
+    if (!newCatName.trim()) return;
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newCatName.trim(), color: newCatColor || undefined }),
+    });
+    const json = await res.json();
+    if (json.error) {
+      notify(`Error: ${json.error}`, 'error');
+    } else {
+      notify(`Category "${newCatName.trim()}" created`, 'success');
+      setNewCatName('');
+      setNewCatColor('');
+      loadCategories();
+    }
+  }
+
+  async function deleteCategory(id: string, name: string) {
+    if (!confirm(`Remove "${name}" category? Tracks won't be deleted, they just won't have a category box.`)) return;
+    const res = await fetch(`/api/categories?id=${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.error) {
+      notify(`Error: ${json.error}`, 'error');
+    } else {
+      notify(`Category "${name}" removed`, 'info');
+      loadCategories();
+    }
+  }
 
   async function loadData() {
     const supabase = createClient();
@@ -96,6 +143,7 @@ export default function AdminPage() {
       artist: editForm.artist as string,
       writers: (editForm.writers as string) || null,
       producers: (editForm.producers as string) || null,
+      publisher: (editForm.publisher as string) || null,
       status: editForm.status as string,
       genre: editForm.genre as string,
       subgenre: (editForm.subgenre as string) || null,
@@ -132,18 +180,40 @@ export default function AdminPage() {
 
   async function deleteTrack(trackId: string) {
     const track = tracks.find(t => t.id === trackId);
-    if (!track || !confirm(`Delete "${track.title}" permanently?`)) return;
+    if (!track || !confirm(`Delete "${track.title}" permanently? This cannot be undone.`)) return;
 
     const supabase = createClient();
-    await supabase.from('tracks').delete().eq('id', trackId);
-    notify(`"${track.title}" deleted`, 'info');
-    setEditTrack(null);
-    loadData();
+
+    // Delete related track_files first
+    await supabase.from('track_files').delete().eq('track_id', trackId);
+    // Delete the track
+    const { error } = await supabase.from('tracks').delete().eq('id', trackId);
+
+    if (error) {
+      notify(`Error deleting: ${error.message}`, 'error');
+    } else {
+      notify(`"${track.title}" deleted`, 'info');
+      setEditTrack(null);
+      loadData();
+    }
   }
 
   const updateField = (field: string, value: string | boolean | number) => {
     setEditForm(prev => ({ ...prev, [field]: value }));
   };
+
+  const filteredTracks = useMemo(() => {
+    if (!trackSearch) return tracks;
+    const q = trackSearch.toLowerCase();
+    return tracks.filter(t =>
+      `${t.title} ${t.artist} ${t.genre} ${t.id} ${t.mood} ${t.writers} ${t.producers}`.toLowerCase().includes(q)
+    );
+  }, [tracks, trackSearch]);
+
+  async function handlePlay(track: Track) {
+    if (currentTrack?.id === track.id && playing) { pause(); return; }
+    await play(track);
+  }
 
   const totalDownloads = tracks.reduce((s, t) => s + t.download_count, 0);
   const liked = tracks.filter(t => t.sync_status === 'liked').length;
@@ -192,6 +262,8 @@ export default function AdminPage() {
           <StatCard label="Liked" value={liked} color="var(--pink)" />
           <StatCard label="Chosen" value={chosen} color="var(--cyan)" />
           <StatCard label="Placed" value={placed} color="var(--green)" />
+          <StatCard label="Open Briefs" value={musicRequests.filter(r => (r.status || 'Open') === 'Open').length} color="var(--green)" />
+          <StatCard label="In Review" value={musicRequests.filter(r => r.status === 'In Review').length} color="var(--orange)" />
         </div>
 
         {/* Quick links */}
@@ -217,6 +289,92 @@ export default function AdminPage() {
           }}>
             Manage Contacts
           </Link>
+        </div>
+
+        {/* Category Manager */}
+        <div style={{
+          marginBottom: 28, padding: 20, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: 12,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showCatManager ? 16 : 0 }}>
+            <div>
+              <h3 style={{ fontSize: 16, marginBottom: 2 }}>Browse Categories</h3>
+              <p style={{ fontSize: 12, color: 'var(--dim)' }}>
+                {categories.length} categories &mdash; These are the genre folders shown on the Browse page
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCatManager(!showCatManager)}
+              style={{
+                padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)',
+                background: 'var(--surface-solid)', color: 'var(--text)', fontSize: 12,
+                fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              {showCatManager ? 'Close' : 'Manage'}
+            </button>
+          </div>
+
+          {showCatManager && (
+            <>
+              {/* Existing categories */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {categories.map(cat => (
+                  <div key={cat.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 14px', borderRadius: 8,
+                    border: '1px solid var(--border)', background: 'var(--bg)',
+                    fontSize: 13, fontWeight: 500,
+                  }}>
+                    <span style={{
+                      width: 14, height: 14, borderRadius: 4,
+                      background: cat.color, flexShrink: 0,
+                    }} />
+                    {cat.name}
+                    <button
+                      onClick={() => deleteCategory(cat.id, cat.name)}
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--red)',
+                        fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: '0 2px',
+                      }}
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add new category */}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <label style={{ fontSize: 11, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: 0.3, display: 'block', marginBottom: 4 }}>
+                    New Category Name
+                  </label>
+                  <input
+                    value={newCatName}
+                    onChange={e => setNewCatName(e.target.value)}
+                    placeholder="e.g. Reggae, Soul, Funk..."
+                    style={{ width: '100%' }}
+                    onKeyDown={e => e.key === 'Enter' && addCategory()}
+                  />
+                </div>
+                <button
+                  onClick={addCategory}
+                  disabled={!newCatName.trim()}
+                  style={{
+                    padding: '10px 20px', borderRadius: 8, border: 'none',
+                    background: 'var(--accent)', color: '#fff', fontSize: 13,
+                    fontWeight: 600, cursor: newCatName.trim() ? 'pointer' : 'not-allowed',
+                    fontFamily: "'DM Sans', sans-serif",
+                    opacity: newCatName.trim() ? 1 : 0.5,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  + Add Category
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Music Requests */}
@@ -280,7 +438,20 @@ export default function AdminPage() {
         <div className="admin-layout">
           {/* Pipeline Table */}
           <div>
-            <h3 style={{ fontSize: 16, marginBottom: 14 }}>Catalog Pipeline</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+              <h3 style={{ fontSize: 16, margin: 0 }}>
+                Catalog Pipeline
+                <span style={{ fontSize: 12, color: 'var(--dim)', fontWeight: 400, marginLeft: 8 }}>
+                  ({filteredTracks.length}{trackSearch ? ` of ${tracks.length}` : ''})
+                </span>
+              </h3>
+              <input
+                value={trackSearch}
+                onChange={e => setTrackSearch(e.target.value)}
+                placeholder="Search tracks..."
+                style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, minWidth: 200, maxWidth: 300, flex: 1 }}
+              />
+            </div>
             <div className="table-scroll">
             <table style={{
               width: '100%', borderCollapse: 'separate', borderSpacing: 0,
@@ -288,21 +459,44 @@ export default function AdminPage() {
             }}>
               <thead>
                 <tr>
+                  <th style={{ ...thStyle, width: 50 }}>Play</th>
                   <th style={thStyle}>Title / Artist</th>
+                  <th style={thStyle}>Genre</th>
                   <th style={thStyle}>Status</th>
                   <th style={thStyle}>Downloads</th>
                   <th style={thStyle}>Sync Status</th>
                   <th style={thStyle}>Update</th>
-                  <th style={thStyle}>Edit</th>
+                  <th style={thStyle}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {tracks.map(t => (
+                {filteredTracks.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', color: 'var(--dim)', padding: 40 }}>
+                      {trackSearch ? 'No tracks match your search' : 'No tracks in catalog'}
+                    </td>
+                  </tr>
+                ) : filteredTracks.map(t => (
                   <tr key={t.id}>
+                    <td style={tdStyle}>
+                      <button
+                        onClick={() => handlePlay(t)}
+                        disabled={audioLoading && currentTrack?.id === t.id}
+                        style={{
+                          width: 32, height: 32, borderRadius: '50%', border: 'none',
+                          background: currentTrack?.id === t.id && playing ? 'var(--green)' : 'var(--accent)',
+                          color: '#fff', fontSize: 12, cursor: (audioLoading && currentTrack?.id === t.id) ? 'wait' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        {(audioLoading && currentTrack?.id === t.id) ? <LoadingIcon size={12} color="#fff" /> : (currentTrack?.id === t.id && playing) ? <PauseIcon size={12} color="#fff" /> : <PlayIcon size={12} color="#fff" />}
+                      </button>
+                    </td>
                     <td style={tdStyle}>
                       <div style={{ fontWeight: 600 }}>{t.title}</div>
                       <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
                     </td>
+                    <td style={{ ...tdStyle, fontSize: 12 }}>{t.genre || '\u2014'}</td>
                     <td style={tdStyle}>
                       <Badge variant={statusBadgeVariant(t.status)}>
                         {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
@@ -340,13 +534,22 @@ export default function AdminPage() {
                       </select>
                     </td>
                     <td style={tdStyle}>
-                      <button onClick={() => openEdit(t)} style={{
-                        padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
-                        background: 'rgba(0,0,0,0.02)', color: 'var(--text)', fontSize: 12,
-                        cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-                      }}>
-                        Edit
-                      </button>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => openEdit(t)} style={{
+                          padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                          background: 'rgba(0,0,0,0.02)', color: 'var(--text)', fontSize: 12,
+                          cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                        }}>
+                          Edit
+                        </button>
+                        <button onClick={() => deleteTrack(t.id)} style={{
+                          padding: '6px 12px', borderRadius: 6, border: '1px solid var(--red)',
+                          background: 'transparent', color: 'var(--red)', fontSize: 12,
+                          cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                        }}>
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -412,6 +615,13 @@ export default function AdminPage() {
                   <input value={editForm.producers as string} onChange={e => updateField('producers', e.target.value)} />
                 </div>
                 <div style={formGroupStyle}>
+                  <label style={labelStyle}>Publisher</label>
+                  <select value={editForm.publisher as string || ''} onChange={e => updateField('publisher', e.target.value)}>
+                    <option value="">None</option>
+                    {PUBLISHERS.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div style={formGroupStyle}>
                   <label style={labelStyle}>Status</label>
                   <select value={editForm.status as string} onChange={e => updateField('status', e.target.value)}>
                     {TRACK_STATUSES.map(s => <option key={s}>{s}</option>)}
@@ -419,13 +629,11 @@ export default function AdminPage() {
                 </div>
                 <div style={formGroupStyle}>
                   <label style={labelStyle}>Genre</label>
-                  <select value={editForm.genre as string} onChange={e => updateField('genre', e.target.value)}>
-                    {GENRES.map(g => <option key={g}>{g}</option>)}
-                  </select>
+                  <GenreTagInput value={editForm.genre as string || ''} onChange={v => updateField('genre', v)} placeholder="Select genres..." />
                 </div>
                 <div style={formGroupStyle}>
                   <label style={labelStyle}>Sub-Genre</label>
-                  <input value={editForm.subgenre as string} onChange={e => updateField('subgenre', e.target.value)} placeholder="e.g. Hip-Hop / Orchestral" />
+                  <SubgenreInput value={editForm.subgenre as string || ''} onChange={v => updateField('subgenre', v)} placeholder="e.g. Trap, Neo-Soul" />
                 </div>
                 <div style={formGroupStyle}>
                   <label style={labelStyle}>BPM</label>

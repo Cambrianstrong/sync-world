@@ -23,6 +23,89 @@
   --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
 }
 
+/* Dark mode via system preference */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --bg: #0f0f13;
+    --surface: rgba(255,255,255,0.06);
+    --surface2: rgba(255,255,255,0.04);
+    --surface-solid: #1a1a22;
+    --border: rgba(255,255,255,0.08);
+    --text: #f0f0f3;
+    --dim: #8b8b9e;
+    --accent: #e0e0e8;
+    --accent-light: rgba(255,255,255,0.06);
+    --glow: rgba(255,255,255,0.02);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+    --shadow: 0 4px 16px rgba(0,0,0,0.3);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+  }
+}
+
+/* Dark mode via manual toggle — use high specificity to override Tailwind */
+html.dark,
+html.dark body {
+  --bg: #0f0f13;
+  --surface: rgba(255,255,255,0.06);
+  --surface2: rgba(255,255,255,0.04);
+  --surface-solid: #1a1a22;
+  --border: rgba(255,255,255,0.08);
+  --text: #f0f0f3;
+  --dim: #8b8b9e;
+  --accent: #e0e0e8;
+  --accent-light: rgba(255,255,255,0.06);
+  --glow: rgba(255,255,255,0.02);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow: 0 4px 16px rgba(0,0,0,0.3);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+  color-scheme: dark;
+}
+
+html.dark body {
+  background: #0f0f13 !important;
+  color: #f0f0f3 !important;
+}
+
+html.dark input, html.dark select, html.dark textarea {
+  background: #1a1a22;
+  color: #f0f0f3;
+  border-color: rgba(255,255,255,0.08);
+}
+
+html.dark input::placeholder, html.dark textarea::placeholder {
+  color: #8b8b9e;
+}
+
+/* Force light mode when .light class is set (overrides system dark preference) */
+html.light,
+html.light body {
+  --bg: #f4f5f7;
+  --surface: rgba(255,255,255,0.72);
+  --surface2: rgba(255,255,255,0.5);
+  --surface-solid: #ffffff;
+  --border: rgba(0,0,0,0.08);
+  --text: #1a1a2e;
+  --dim: #6b7280;
+  --accent: #1a1a2e;
+  --accent-light: rgba(26,26,46,0.06);
+  --glow: rgba(0,0,0,0.02);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 4px 16px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
+  color-scheme: light;
+}
+
+html.light body {
+  background: #f4f5f7 !important;
+  color: #1a1a2e !important;
+}
+
+html.light input, html.light select, html.light textarea {
+  background: #ffffff;
+  color: #1a1a2e;
+  border-color: rgba(0,0,0,0.08);
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -31,6 +114,18 @@ body {
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  /* PWA safe areas for notched phones */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* PWA standalone mode - hide browser UI awareness */
+@media (display-mode: standalone) {
+  .top-nav {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
 }
 
 ::-webkit-scrollbar { width: 6px; }
@@ -108,6 +203,27 @@ audio {
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+html.dark .top-nav {
+  background: rgba(15,15,19,0.85);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .top-nav {
+    background: rgba(15,15,19,0.85);
+  }
+}
+
+/* Dark mode: mobile menu overlay */
+html.dark .nav-tabs.open {
+  background: rgba(26,26,34,0.98);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .nav-tabs.open {
+    background: rgba(26,26,34,0.98);
+  }
 }
 
 .nav-left {
@@ -196,6 +312,36 @@ audio {
   white-space: nowrap;
 }
 
+/* Equalizer animation for Now Playing */
+.nav-equalizer {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.eq-bar {
+  display: block;
+  width: 3px;
+  background: var(--green);
+  border-radius: 1px;
+  animation: eq-bounce 0.8s ease-in-out infinite;
+}
+
+.eq-bar:nth-child(1) { height: 6px; animation-delay: 0s; }
+.eq-bar:nth-child(2) { height: 10px; animation-delay: 0.15s; }
+.eq-bar:nth-child(3) { height: 4px; animation-delay: 0.3s; }
+
+@keyframes eq-bounce {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes ptr-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .nav-signin {
   padding: 6px 14px;
   border-radius: 8px;
@@ -241,6 +387,31 @@ audio {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 16px;
+}
+
+.track-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.track-card {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 14px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.track-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
 }
 
 .genre-box {
@@ -401,6 +572,16 @@ audio {
     gap: 10px;
   }
 
+  .track-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .track-card {
+    aspect-ratio: 1.2;
+    padding: 12px;
+  }
+
   .genre-box {
     aspect-ratio: 1.2;
     padding: 14px;
@@ -464,6 +645,183 @@ audio {
   h2 {
     font-size: 18px !important;
   }
+}
+
+/* === Mini Player === */
+
+.mini-player {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  background: var(--surface-solid);
+  border-top: 1px solid var(--border);
+  backdrop-filter: var(--glass);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mini-player-bar {
+  height: 4px;
+  background: var(--border);
+  cursor: pointer;
+  position: relative;
+  transition: height 0.15s;
+}
+
+.mini-player-bar:hover {
+  height: 6px;
+}
+
+.mini-player-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+  transition: width 0.1s linear;
+}
+
+.mini-player-content {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px;
+  height: 52px;
+}
+
+.mini-player-info {
+  min-width: 0;
+}
+
+.mini-player-title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player-artist {
+  font-size: 12px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mini-player-time {
+  font-size: 11px;
+  color: var(--dim);
+  font-family: 'Space Grotesk', sans-serif;
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: center;
+}
+
+.mini-player-play {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.mini-player-play:hover {
+  opacity: 0.85;
+}
+
+.mini-player-close-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.mini-player-close {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+.mini-player-close:hover {
+  color: var(--text);
+}
+
+@media (max-width: 768px) {
+  .mini-player-content {
+    padding: 8px 16px;
+    gap: 10px;
+    height: 48px;
+  }
+
+  .mini-player-time {
+    display: none;
+  }
+}
+
+/* === Keyboard Shortcuts === */
+
+.shortcuts-help-btn {
+  position: fixed;
+  bottom: 72px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--dim);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  z-index: 80;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all 0.2s;
+}
+
+.shortcuts-help-btn:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shortcuts-panel {
+  background: var(--surface-solid);
+  border-radius: 16px;
+  padding: 28px;
+  width: 320px;
+  max-width: 90vw;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
 }
 
 /* Small phones */

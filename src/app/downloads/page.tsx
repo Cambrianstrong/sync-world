@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo } from 'react';
 import TopNav from '@/components/nav/TopNav';
 import Notification, { useNotification } from '@/components/ui/Notification';
 import { useAuth } from '@/hooks/useAuth';
+import { useCart } from '@/contexts/CartContext';
+import { useAudio } from '@/contexts/AudioContext';
+import { PlayIcon, PauseIcon, LoadingIcon } from '@/components/ui/Icons';
 
 interface DownloadItem {
   id: string;
@@ -15,6 +18,7 @@ interface DownloadItem {
     artist: string;
     writers: string | null;
     producers: string | null;
+    publisher: string | null;
     genre: string;
     subgenre: string | null;
     bpm: number | null;
@@ -27,23 +31,27 @@ interface DownloadItem {
 
 export default function DownloadsPage() {
   const { profile, loading: authLoading } = useAuth();
+  const { items: cartItems, removeFromCart, clearCart } = useCart();
+  const { track: currentTrack, playing, loading: audioLoading, play, pause } = useAudio();
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { notif } = useNotification();
+  const [sending, setSending] = useState(false);
+  const { notif, notify } = useNotification();
 
   useEffect(() => {
-    async function loadDownloads() {
-      try {
-        const res = await fetch('/api/downloads');
-        const json = await res.json();
-        if (json.downloads) setDownloads(json.downloads);
-      } catch (err) {
-        console.error('Failed to load downloads:', err);
-      }
-      setLoading(false);
-    }
     loadDownloads();
   }, []);
+
+  async function loadDownloads() {
+    try {
+      const res = await fetch('/api/downloads');
+      const json = await res.json();
+      if (json.downloads) setDownloads(json.downloads);
+    } catch (err) {
+      console.error('Failed to load downloads:', err);
+    }
+    setLoading(false);
+  }
 
   // Deduplicate: show each track only once, with the most recent download date
   const uniqueDownloads = useMemo(() => {
@@ -56,6 +64,59 @@ export default function DownloadsPage() {
     return [...seen.values()];
   }, [downloads]);
 
+  async function handleSendToEmail() {
+    if (cartItems.length === 0) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tracks: cartItems.map(item => ({
+            id: item.track.id,
+            title: item.track.title,
+            artist: item.track.artist,
+            genre: item.track.genre,
+            bpm: item.track.bpm,
+            energy: item.track.energy,
+            mood: item.track.mood,
+            vocal: item.track.vocal,
+            writers: item.track.writers,
+            producers: item.track.producers,
+            key: item.track.key,
+            status: item.track.status,
+            download_count: item.track.download_count,
+          })),
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        notify(
+          json.emailSent
+            ? `${cartItems.length} track${cartItems.length !== 1 ? 's' : ''} sent to your email! Check your inbox for secure download links.`
+            : `${cartItems.length} track${cartItems.length !== 1 ? 's' : ''} processed. Email service unavailable — contact admin for links.`,
+          json.emailSent ? 'success' : 'info',
+        );
+        clearCart();
+        // Reload download history
+        await loadDownloads();
+      } else {
+        notify(json.error || 'Failed to send. Try again.', 'error');
+      }
+    } catch {
+      notify('Failed to send. Try again.', 'error');
+    }
+    setSending(false);
+  }
+
+  async function handlePlay(track: any) {
+    if (currentTrack?.id === track.id && playing) {
+      pause();
+    } else {
+      await play(track);
+    }
+  }
+
   if (authLoading || !profile) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
@@ -64,15 +125,9 @@ export default function DownloadsPage() {
     );
   }
 
-  const thStyle: React.CSSProperties = {
-    textAlign: 'left', padding: '12px 16px', fontSize: 11,
-    textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--dim)',
-    borderBottom: '1px solid var(--border)', fontWeight: 600,
-  };
-
-  const tdStyle: React.CSSProperties = {
-    padding: '14px 16px', borderBottom: '1px solid var(--border)',
-    verticalAlign: 'top',
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--surface-solid)', borderRadius: 14, border: '1px solid var(--border)',
+    padding: 20, marginBottom: 20,
   };
 
   return (
@@ -81,102 +136,190 @@ export default function DownloadsPage() {
       <div className="page-container">
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, marginBottom: 8 }}>
-            My Downloads
+            My Cart & Downloads
           </h1>
           <p style={{ color: 'var(--dim)', fontSize: 14 }}>
-            Keep track of songs you&apos;ve already downloaded. This helps you avoid re-listening to tracks you&apos;ve already reviewed.
+            Add tracks to your cart, then send them to your email as secure download links with full song information.
           </p>
         </div>
 
-        {loading ? (
-          <p style={{ color: 'var(--dim)', fontSize: 14 }}>Loading download history...</p>
-        ) : uniqueDownloads.length === 0 ? (
-          <div style={{
-            padding: 40, textAlign: 'center', background: 'var(--surface-solid)',
-            borderRadius: 16, border: '1px solid var(--border)',
-          }}>
-            <p style={{ color: 'var(--dim)', fontSize: 15 }}>No downloads yet.</p>
-            <p style={{ color: 'var(--dim)', fontSize: 13, marginTop: 8 }}>
-              When you check out tracks from the catalog, they&apos;ll appear here so you can keep track.
-            </p>
+        {/* CART SECTION */}
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, margin: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: -3, marginRight: 8 }}>
+                <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+              </svg>
+              My Cart ({cartItems.length})
+            </h2>
+            {cartItems.length > 0 && (
+              <button
+                onClick={handleSendToEmail}
+                disabled={sending}
+                style={{
+                  padding: '10px 24px', borderRadius: 10, border: 'none',
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: sending ? 'wait' : 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                {sending ? 'Sending...' : 'Send to My Email'}
+              </button>
+            )}
           </div>
-        ) : (
-          <>
-            <div style={{
-              marginBottom: 16, padding: '10px 16px', background: 'var(--surface-solid)',
-              borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, color: 'var(--dim)',
-            }}>
-              {uniqueDownloads.length} unique track{uniqueDownloads.length !== 1 ? 's' : ''} downloaded
-              {downloads.length !== uniqueDownloads.length && ` (${downloads.length} total downloads)`}
-            </div>
 
-            <div className="table-scroll">
-              <table style={{
-                width: '100%', borderCollapse: 'separate', borderSpacing: 0,
-                background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
-              }}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Title</th>
-                    <th style={thStyle}>Artist / Writers</th>
-                    <th style={thStyle}>Type</th>
-                    <th style={thStyle}>Genre</th>
-                    <th style={thStyle}>Energy</th>
-                    <th style={thStyle}>Mood</th>
-                    <th style={thStyle}>BPM / Key</th>
-                    <th style={thStyle}>Downloaded</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {uniqueDownloads.map((d) => {
-                    const t = d.track;
-                    if (!t) {
-                      return (
-                        <tr key={d.id}>
-                          <td style={{ ...tdStyle, fontSize: 13, color: 'var(--dim)' }} colSpan={8}>
-                            Track no longer available
-                          </td>
-                        </tr>
-                      );
-                    }
-                    return (
-                      <tr key={d.id}>
-                        <td style={tdStyle}>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>{t.title}</div>
-                          {t.subgenre && <div style={{ color: 'var(--dim)', fontSize: 11 }}>{t.subgenre}</div>}
-                        </td>
-                        <td style={tdStyle}>
-                          <div style={{ fontSize: 13 }}>{t.artist}</div>
-                          {t.writers && <div style={{ color: 'var(--dim)', fontSize: 11 }}>Writers: {t.writers}</div>}
-                          {t.producers && <div style={{ color: 'var(--dim)', fontSize: 11 }}>Prod: {t.producers}</div>}
-                        </td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
-                            background: t.vocal === 'Instrumental' ? 'rgba(99,102,241,0.1)' : 'rgba(236,72,153,0.1)',
-                            color: t.vocal === 'Instrumental' ? '#6366f1' : '#ec4899',
-                          }}>
-                            {t.vocal === 'Instrumental' ? 'Instrumental' : 'Song'}
-                          </span>
-                        </td>
-                        <td style={{ ...tdStyle, fontSize: 13 }}>{t.genre}</td>
-                        <td style={{ ...tdStyle, fontSize: 13 }}>{t.energy}</td>
-                        <td style={{ ...tdStyle, fontSize: 13 }}>{t.mood || '\u2014'}</td>
-                        <td style={tdStyle}>
-                          <div style={{ fontSize: 13 }}>{t.bpm ? `${t.bpm} BPM` : '\u2014'}</div>
-                          {t.key && <div style={{ color: 'var(--dim)', fontSize: 11 }}>{t.key}</div>}
-                        </td>
-                        <td style={{ ...tdStyle, fontSize: 12, color: 'var(--dim)' }}>
-                          {new Date(d.downloaded_at).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          {cartItems.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--dim)', fontSize: 14 }}>
+              Your cart is empty. Browse the catalog and add tracks to get started.
             </div>
-          </>
-        )}
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {cartItems.map(item => {
+                const t = item.track;
+                const isPlaying = currentTrack?.id === t.id && playing;
+                const isLoading = currentTrack?.id === t.id && audioLoading;
+                return (
+                  <div key={t.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                    background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)',
+                  }}>
+                    {/* Play button */}
+                    <button
+                      onClick={() => handlePlay(t)}
+                      style={{
+                        width: 36, height: 36, borderRadius: '50%', border: 'none',
+                        background: 'var(--accent)', color: '#fff', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}
+                    >
+                      {isLoading ? <LoadingIcon size={16} color="#fff" /> :
+                       isPlaying ? <PauseIcon size={16} color="#fff" /> :
+                       <PlayIcon size={16} color="#fff" />}
+                    </button>
+
+                    {/* Track info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {t.title}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {t.artist} {t.genre ? `\u2022 ${t.genre}` : ''} {t.energy ? `\u2022 ${t.energy}` : ''}
+                      </div>
+                    </div>
+
+                    {/* Tags */}
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+                        background: t.vocal === 'Instrumental' ? 'rgba(99,102,241,0.12)' : 'rgba(236,72,153,0.12)',
+                        color: t.vocal === 'Instrumental' ? '#6366f1' : '#ec4899',
+                      }}>
+                        {t.vocal === 'Instrumental' ? 'INST' : 'SONG'}
+                      </span>
+                    </div>
+
+                    {/* Remove */}
+                    <button
+                      onClick={() => removeFromCart(t.id)}
+                      title="Remove from cart"
+                      style={{
+                        width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border)',
+                        background: 'none', color: 'var(--dim)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        fontSize: 14,
+                      }}
+                    >
+                      \u2715
+                    </button>
+                  </div>
+                );
+              })}
+
+              <div style={{
+                marginTop: 8, padding: '10px 14px', background: 'rgba(99,102,241,0.06)',
+                borderRadius: 8, fontSize: 12, color: 'var(--dim)', lineHeight: 1.5,
+              }}>
+                <strong>How it works:</strong> Click &quot;Send to My Email&quot; to receive secure download links for all {cartItems.length} track{cartItems.length !== 1 ? 's' : ''}.
+                Links include full song information and expire in 24 hours. No files are downloaded directly in the app.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* DOWNLOAD HISTORY */}
+        <div style={cardStyle}>
+          <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 16 }}>
+            Download History
+          </h2>
+
+          {loading ? (
+            <p style={{ color: 'var(--dim)', fontSize: 14 }}>Loading download history...</p>
+          ) : uniqueDownloads.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center' }}>
+              <p style={{ color: 'var(--dim)', fontSize: 14 }}>No downloads yet.</p>
+              <p style={{ color: 'var(--dim)', fontSize: 12, marginTop: 6 }}>
+                Tracks you send to your email will appear here.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div style={{
+                marginBottom: 12, fontSize: 12, color: 'var(--dim)',
+              }}>
+                {uniqueDownloads.length} track{uniqueDownloads.length !== 1 ? 's' : ''} sent to email
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {uniqueDownloads.map(d => {
+                  const t = d.track;
+                  if (!t) {
+                    return (
+                      <div key={d.id} style={{
+                        padding: '12px 14px', background: 'var(--bg)', borderRadius: 10,
+                        border: '1px solid var(--border)', fontSize: 13, color: 'var(--dim)',
+                      }}>
+                        Track no longer available
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={d.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                      background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {t.title}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {t.artist} {t.genre ? `\u2022 ${t.genre}` : ''} {t.vocal ? `\u2022 ${t.vocal}` : ''}
+                          {t.writers ? ` \u2022 Writers: ${t.writers}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ flexShrink: 0 }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+                          background: t.vocal === 'Instrumental' ? 'rgba(99,102,241,0.12)' : 'rgba(236,72,153,0.12)',
+                          color: t.vocal === 'Instrumental' ? '#6366f1' : '#ec4899',
+                        }}>
+                          {t.vocal === 'Instrumental' ? 'INST' : 'SONG'}
+                        </span>
+                      </div>
+                      <div style={{ flexShrink: 0, fontSize: 11, color: 'var(--dim)', textAlign: 'right' }}>
+                        {new Date(d.downloaded_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
 
         <Notification {...notif} />
       </div>

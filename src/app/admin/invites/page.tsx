@@ -226,7 +226,7 @@ export default function InvitesPage() {
           </div>
           <div style={{ marginTop: 16, padding: 14, background: 'var(--bg)', borderRadius: 8, fontSize: 13, color: 'var(--dim)', lineHeight: 1.5 }}>
             <strong style={{ color: 'var(--text)' }}>
-              {newRole === 'producer' ? 'Producer' : 'Viewer'}
+              {newRole === 'admin' ? 'Admin' : newRole === 'producer' ? 'Producer' : 'Viewer'}
             </strong> invite &mdash;
             {newRole === 'admin'
               ? ' Full access — manage catalog, users, invites, and pipeline.'

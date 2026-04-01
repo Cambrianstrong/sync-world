@@ -5,6 +5,7 @@ import { GENRES } from '@/lib/types';
 
 const ALL_SUGGESTIONS = [
   ...GENRES,
+  // Core sub-genres
   'Trap', 'Drill', 'Boom Bap', 'Lo-Fi', 'Neo-Soul', 'Funk',
   'Reggaeton', 'Dancehall', 'Amapiano', 'Grime', 'UK Garage',
   'Soul', 'Blues', 'Indie', 'Alternative', 'Punk', 'Metal',
@@ -14,6 +15,23 @@ const ALL_SUGGESTIONS = [
   'K-Pop', 'J-Pop', 'Afro-Fusion', 'Highlife', 'Zouk',
   'Worship', 'CCM', 'Hymn', 'Choral',
   'Acoustic', 'Singer-Songwriter', 'Folk',
+  // Additional genres
+  'Reggae', 'Dub', 'Soca', 'Calypso', 'Kompa',
+  'Afro-House', 'Afro-Pop', 'Afro-Swing', 'Gqom',
+  'Deep House', 'Tech House', 'Progressive House', 'Trance',
+  'Garage', 'Jungle', 'Breakbeat', 'Hardstyle', 'Downtempo', 'Chillwave',
+  'Motown', 'Quiet Storm', 'New Jack Swing',
+  'Southern Hip-Hop', 'Cloud Rap', 'Emo Rap', 'Phonk', 'Conscious Rap',
+  'Indie Rock', 'Shoegaze', 'Post-Rock', 'Grunge', 'Surf Rock',
+  'Ska', 'Psychedelic', 'Progressive Rock',
+  'Country Pop', 'Americana', 'Bluegrass', 'Outlaw Country',
+  'Smooth Jazz', 'Bebop', 'Fusion', 'Acid Jazz',
+  'Dembow', 'Latin Trap', 'Merengue', 'Corridos', 'Norteño',
+  'MPB', 'Forró', 'Funk Carioca', 'Pagode', 'Axé',
+  'Trailer Music', 'Epic', 'Soundtrack', 'Meditation',
+  'Dance Pop', 'Electro-Pop', 'Synth-Pop', 'Art Pop', 'Dream Pop',
+  'Contemporary Worship', 'Praise & Worship', 'Gospel Choir',
+  'World Music', 'Bollywood', 'Flamenco', 'Fado', 'Celtic',
 ];
 
 const SUGGESTIONS = [...new Set(ALL_SUGGESTIONS)].sort();

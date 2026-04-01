@@ -1,33 +1,53 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Track } from '@/lib/types';
-import { GENRES } from '@/lib/types';
 import TopNav from '@/components/nav/TopNav';
 import TrackFilters from '@/components/tracks/TrackFilters';
 import TrackTable from '@/components/tracks/TrackTable';
+import TrackCardGrid from '@/components/tracks/TrackCardGrid';
 import TrackDetail from '@/components/tracks/TrackDetail';
 
 import Notification, { useNotification } from '@/components/ui/Notification';
+import PullToRefreshIndicator from '@/components/ui/PullToRefreshIndicator';
 import { CartButton } from '@/components/cart/CartPanel';
 import { useAuth } from '@/hooks/useAuth';
+import useKeyboardShortcuts from '@/hooks/useKeyboardShortcuts';
+import usePullToRefresh from '@/hooks/usePullToRefresh';
 
-const GENRE_COLORS: Record<string, string> = {
-  'Hip-Hop': 'linear-gradient(135deg, #1a1a2e 0%, #3a3a5c 100%)',
-  'R&B': 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)',
-  'Pop': 'linear-gradient(135deg, #ec4899 0%, #f9a8d4 100%)',
-  'Country': 'linear-gradient(135deg, #b45309 0%, #d97706 100%)',
-  'Latin': 'linear-gradient(135deg, #dc2626 0%, #f87171 100%)',
-  'Brazilian': 'linear-gradient(135deg, #059669 0%, #34d399 100%)',
-  'Electronic': 'linear-gradient(135deg, #0891b2 0%, #22d3ee 100%)',
-  'Afrobeats': 'linear-gradient(135deg, #d97706 0%, #fbbf24 100%)',
-  'Rock': 'linear-gradient(135deg, #374151 0%, #6b7280 100%)',
-  'Gospel': 'linear-gradient(135deg, #7c2d12 0%, #c2410c 100%)',
-  'Jazz': 'linear-gradient(135deg, #1e3a5f 0%, #3b82f6 100%)',
-  'Orchestral': 'linear-gradient(135deg, #581c87 0%, #9333ea 100%)',
-  'Other': 'linear-gradient(135deg, #4b5563 0%, #9ca3af 100%)',
-};
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+}
+
+// Normalize a genre string for comparison — strips to lowercase alphanumeric
+// so "Hip-Hop", "hip-hop", "Hip Hop", "hiphop" all become "hiphop"
+function normalizeGenre(g: string): string {
+  return g.toLowerCase().replace(/[^a-z0-9&]/g, '');
+}
+
+// Get the primary genre (first genre) for category box placement
+function getPrimaryGenre(genre: string): string {
+  if (!genre) return '';
+  return genre.split(',')[0].trim();
+}
+
+// Get all genres from a comma-separated genre string
+function getAllGenres(genre: string): string[] {
+  if (!genre) return [];
+  return genre.split(',').map(g => g.trim()).filter(Boolean);
+}
+
+// Check if a track has a specific genre anywhere in its genre tags (normalized)
+function hasGenre(trackGenre: string, genre: string): boolean {
+  const target = normalizeGenre(genre);
+  return getAllGenres(trackGenre).some(g => normalizeGenre(g) === target);
+}
+
+const FALLBACK_COLOR = 'linear-gradient(135deg, #4b5563 0%, #9ca3af 100%)';
 
 export default function BrowsePage() {
   const { profile, loading: authLoading } = useAuth();
@@ -38,13 +58,25 @@ export default function BrowsePage() {
   const [filterEnergy, setFilterEnergy] = useState('');
   const [filterVocal, setFilterVocal] = useState('');
   const [filterWriterProducer, setFilterWriterProducer] = useState('');
+  const [filterPublisher, setFilterPublisher] = useState('');
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [activeSection, setActiveSection] = useState<'songs' | 'instrumentals' | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const { notif, notify } = useNotification();
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadTracks();
+    loadCategories();
   }, []);
+
+  async function loadCategories() {
+    const res = await fetch('/api/categories');
+    const json = await res.json();
+    if (json.categories) setCategories(json.categories);
+  }
 
   async function loadTracks() {
     const supabase = createClient();
@@ -65,6 +97,16 @@ export default function BrowsePage() {
       });
     });
     return [...names].sort();
+  }, [tracks]);
+
+  const publisherOptions = useMemo(() => {
+    const pubs = new Set<string>();
+    tracks.forEach(t => {
+      if (t.publisher) {
+        t.publisher.split(/[,\/]/).map(p => p.trim()).filter(Boolean).forEach(p => pubs.add(p));
+      }
+    });
+    return [...pubs].sort();
   }, [tracks]);
 
   async function handleInterest(trackId: string, level: 'liked' | 'chosen' | 'placed') {
@@ -102,52 +144,81 @@ export default function BrowsePage() {
       const s = `${t.title} ${t.artist} ${t.genre} ${t.subgenre} ${t.mood} ${t.theme} ${t.notes}`.toLowerCase();
       const wpMatch = !filterWriterProducer ||
         `${t.writers} ${t.producers}`.toLowerCase().includes(filterWriterProducer.toLowerCase());
+      const pubMatch = !filterPublisher ||
+        (t.publisher && t.publisher.toLowerCase().includes(filterPublisher.toLowerCase()));
+      // Match if genre appears ANYWHERE in the track's genre tags
+      const genreMatch = !filterGenre || filterGenre === '__all__' || hasGenre(t.genre, filterGenre);
       return (
         (!search || s.includes(search.toLowerCase())) &&
         (!filterStatus || t.status === filterStatus) &&
-        (!filterGenre || t.genre === filterGenre) &&
+        genreMatch &&
         (!filterEnergy || t.energy === filterEnergy) &&
         (!filterVocal || t.vocal === filterVocal) &&
-        wpMatch
+        wpMatch &&
+        pubMatch
       );
     });
-  }, [tracks, songTracks, instrumentalTracks, activeSection, search, filterStatus, filterGenre, filterEnergy, filterVocal, filterWriterProducer]);
+  }, [tracks, songTracks, instrumentalTracks, activeSection, search, filterStatus, filterGenre, filterEnergy, filterVocal, filterWriterProducer, filterPublisher]);
 
-  // Genre grouping for songs
+  // Genre counts: count tracks where genre appears ANYWHERE in tags
+  // (a track tagged "Hip-Hop, R&B" counts toward both Hip-Hop AND R&B)
   const songGenreGroups = useMemo(() => {
     const groups: Record<string, number> = {};
+    const catNames = categories.map(c => c.name);
     songTracks.forEach(t => {
-      groups[t.genre] = (groups[t.genre] || 0) + 1;
+      const trackGenres = getAllGenres(t.genre).map(g => normalizeGenre(g));
+      catNames.forEach(cat => {
+        if (trackGenres.includes(normalizeGenre(cat))) {
+          groups[cat] = (groups[cat] || 0) + 1;
+        }
+      });
     });
     return groups;
-  }, [songTracks]);
+  }, [songTracks, categories]);
 
-  // Genre grouping for instrumentals
   const instGenreGroups = useMemo(() => {
     const groups: Record<string, number> = {};
+    const catNames = categories.map(c => c.name);
     instrumentalTracks.forEach(t => {
-      groups[t.genre] = (groups[t.genre] || 0) + 1;
+      const trackGenres = getAllGenres(t.genre).map(g => normalizeGenre(g));
+      catNames.forEach(cat => {
+        if (trackGenres.includes(normalizeGenre(cat))) {
+          groups[cat] = (groups[cat] || 0) + 1;
+        }
+      });
     });
     return groups;
-  }, [instrumentalTracks]);
+  }, [instrumentalTracks, categories]);
 
-  // All genres for songs
-  const songGenres = useMemo(() => {
-    const genres: string[] = [...GENRES];
-    Object.keys(songGenreGroups).forEach(g => {
-      if (!genres.includes(g)) genres.push(g);
-    });
-    return genres;
-  }, [songGenreGroups]);
+  const handleOpenTrack = useCallback(() => {
+    if (selectedIndex >= 0 && selectedIndex < filtered.length) {
+      setSelectedTrack(filtered[selectedIndex]);
+    }
+  }, [selectedIndex, filtered]);
 
-  // All genres for instrumentals
-  const instGenres = useMemo(() => {
-    const genres: string[] = [...GENRES];
-    Object.keys(instGenreGroups).forEach(g => {
-      if (!genres.includes(g)) genres.push(g);
-    });
-    return genres;
-  }, [instGenreGroups]);
+  const handleCloseModal = useCallback(() => {
+    setSelectedTrack(null);
+    setShowShortcuts(false);
+  }, []);
+
+  const handleFocusSearch = useCallback(() => {
+    searchRef.current?.focus();
+  }, []);
+
+  useKeyboardShortcuts({
+    trackCount: filtered.length,
+    selectedIndex,
+    onSelectIndex: setSelectedIndex,
+    onOpenTrack: handleOpenTrack,
+    onCloseModal: handleCloseModal,
+    onFocusSearch: handleFocusSearch,
+  });
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([loadTracks(), loadCategories()]);
+  }, []);
+
+  const { pullDistance, refreshing } = usePullToRefresh({ onRefresh: handleRefresh });
 
   const isViewer = !profile || profile.role === 'viewer';
 
@@ -162,6 +233,7 @@ export default function BrowsePage() {
 
   return (
     <div>
+      <PullToRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
       <TopNav role={profile?.role} userName={profile?.full_name} />
       <div className="page-container">
 
@@ -178,9 +250,10 @@ export default function BrowsePage() {
         {/* Search bar */}
         <div style={{ marginBottom: 28 }}>
           <input
+            ref={searchRef}
             value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by title, artist, genre, mood, theme..."
+            onChange={e => { setSearch(e.target.value); setSelectedIndex(-1); }}
+            placeholder="Search by title, artist, genre, mood, theme... (Ctrl+K)"
             style={{ width: '100%', padding: '14px 20px', borderRadius: 14, fontSize: 15 }}
           />
         </div>
@@ -204,19 +277,20 @@ export default function BrowsePage() {
                 </span>
               </h2>
               <div className="genre-grid">
-                {songGenres.map(genre => {
-                  const count = songGenreGroups[genre] || 0;
+                {categories.map(cat => {
+                  const count = songGenreGroups[cat.name] || 0;
+                  if (count === 0) return null;
                   return (
                     <div
-                      key={`song-${genre}`}
+                      key={`song-${cat.id}`}
                       className="genre-box"
-                      onClick={() => { setActiveSection('songs'); setFilterGenre(genre); }}
+                      onClick={() => { setActiveSection('songs'); setFilterGenre(cat.name); }}
                       style={{
-                        background: GENRE_COLORS[genre] || 'linear-gradient(135deg, #4b5563 0%, #9ca3af 100%)',
+                        background: cat.color || FALLBACK_COLOR,
                       }}
                     >
                       <div>
-                        <div className="genre-box-label">{genre}</div>
+                        <div className="genre-box-label">{cat.name}</div>
                         <div className="genre-box-count">
                           {count} track{count !== 1 ? 's' : ''}
                         </div>
@@ -224,6 +298,19 @@ export default function BrowsePage() {
                     </div>
                   );
                 })}
+                {/* View All Songs card */}
+                <div
+                  className="genre-box"
+                  onClick={() => { setActiveSection('songs'); setFilterGenre('__all__'); }}
+                  style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #4b5563 100%)' }}
+                >
+                  <div>
+                    <div className="genre-box-label">All Songs</div>
+                    <div className="genre-box-count">
+                      {songTracks.length} track{songTracks.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -243,19 +330,20 @@ export default function BrowsePage() {
                 </span>
               </h2>
               <div className="genre-grid">
-                {instGenres.map(genre => {
-                  const count = instGenreGroups[genre] || 0;
+                {categories.map(cat => {
+                  const count = instGenreGroups[cat.name] || 0;
+                  if (count === 0) return null;
                   return (
                     <div
-                      key={`inst-${genre}`}
+                      key={`inst-${cat.id}`}
                       className="genre-box"
-                      onClick={() => { setActiveSection('instrumentals'); setFilterGenre(genre); }}
+                      onClick={() => { setActiveSection('instrumentals'); setFilterGenre(cat.name); }}
                       style={{
-                        background: GENRE_COLORS[genre] || 'linear-gradient(135deg, #4b5563 0%, #9ca3af 100%)',
+                        background: cat.color || FALLBACK_COLOR,
                       }}
                     >
                       <div>
-                        <div className="genre-box-label">{genre}</div>
+                        <div className="genre-box-label">{cat.name}</div>
                         <div className="genre-box-count">
                           {count} track{count !== 1 ? 's' : ''}
                         </div>
@@ -263,6 +351,21 @@ export default function BrowsePage() {
                     </div>
                   );
                 })}
+                {/* View All Instrumentals card */}
+                {instrumentalTracks.length > 0 && (
+                  <div
+                    className="genre-box"
+                    onClick={() => { setActiveSection('instrumentals'); setFilterGenre('__all__'); }}
+                    style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #4b5563 100%)' }}
+                  >
+                    <div>
+                      <div className="genre-box-label">All Instrumentals</div>
+                      <div className="genre-box-count">
+                        {instrumentalTracks.length} track{instrumentalTracks.length !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -285,7 +388,9 @@ export default function BrowsePage() {
                   &larr; All Categories
                 </button>
                 <h2 style={{ fontSize: 20, fontWeight: 700 }}>
-                  {activeSection === 'instrumentals' ? `${filterGenre} (Instrumentals)` : filterGenre}
+                  {filterGenre === '__all__'
+                    ? (activeSection === 'instrumentals' ? 'All Instrumentals' : 'All Songs')
+                    : (activeSection === 'instrumentals' ? `${filterGenre} (Instrumentals)` : filterGenre)}
                 </h2>
                 <span style={{ color: 'var(--dim)', fontSize: 14 }}>
                   {filtered.length} track{filtered.length !== 1 ? 's' : ''}
@@ -302,10 +407,12 @@ export default function BrowsePage() {
               vocal={filterVocal} onVocalChange={setFilterVocal}
               writerProducer={filterWriterProducer} onWriterProducerChange={setFilterWriterProducer}
               writerProducerOptions={writerProducerOptions}
+              publisher={filterPublisher} onPublisherChange={setFilterPublisher}
+              publisherOptions={publisherOptions}
             />
 
-            {/* Track Table */}
-            <TrackTable
+            {/* Track Cards */}
+            <TrackCardGrid
               tracks={filtered}
               onView={setSelectedTrack}
               showCart={isViewer}
@@ -326,6 +433,57 @@ export default function BrowsePage() {
 
         {/* Cart button for viewers */}
         {isViewer && <CartButton />}
+
+        {/* Keyboard shortcuts help button */}
+        <button
+          onClick={() => setShowShortcuts(true)}
+          className="shortcuts-help-btn"
+          title="Keyboard shortcuts"
+        >
+          ?
+        </button>
+
+        {/* Shortcuts overlay */}
+        {showShortcuts && (
+          <div className="shortcuts-overlay" onClick={() => setShowShortcuts(false)}>
+            <div className="shortcuts-panel" onClick={e => e.stopPropagation()}>
+              <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, marginBottom: 16 }}>
+                Keyboard Shortcuts
+              </h3>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {[
+                  ['Space', 'Play / Pause'],
+                  ['\u2191 \u2193', 'Navigate tracks'],
+                  ['Enter', 'Open track detail'],
+                  ['Esc', 'Close modal'],
+                  ['Ctrl + K', 'Focus search'],
+                ].map(([key, desc]) => (
+                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <kbd style={{
+                      padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                      background: 'var(--accent-light)', border: '1px solid var(--border)',
+                      fontFamily: "'Space Grotesk', sans-serif",
+                    }}>
+                      {key}
+                    </kbd>
+                    <span style={{ fontSize: 13, color: 'var(--dim)' }}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowShortcuts(false)}
+                style={{
+                  marginTop: 20, width: '100%', padding: '10px', borderRadius: 10,
+                  border: '1px solid var(--border)', background: 'var(--surface-solid)',
+                  color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

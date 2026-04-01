@@ -15,6 +15,7 @@ export interface Track {
   artist: string;
   writers: string | null;
   producers: string | null;
+  publisher: string | null;
   status: 'Released' | 'Unreleased (Complete)' | 'Demo (WIP)';
   genre: string;
   subgenre: string | null;
@@ -106,6 +107,19 @@ export const ENERGY_LEVELS = ['Very High', 'High', 'Medium', 'Low'] as const;
 export const VOCAL_TYPES = ['Male Vox', 'Female Vox', 'Duet', 'Group', 'Instrumental'] as const;
 
 export const TRACK_STATUSES = ['Released', 'Unreleased (Complete)', 'Demo (WIP)'] as const;
+
+export const PUBLISHERS = [
+  'Warner Chappell',
+  'Sony ATV',
+  'Universal Music Publishing Group',
+  'BMG',
+  'Kobalt',
+  'Concord',
+  'Downtown Music Publishing',
+  'Pulse Music Group',
+  'Independent',
+  'Other',
+] as const;
 
 export const ENERGY_MAP: Record<string, { width: number; color: string }> = {
   'Very High': { width: 100, color: '#ef4444' },

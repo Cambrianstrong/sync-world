@@ -25,6 +25,9 @@ export async function POST(request: NextRequest) {
   const energy = formData.get('energy') as string || 'Medium';
   const mood = formData.get('mood') as string || null;
   const notes = formData.get('notes') as string || null;
+  const producers = formData.get('producers') as string || null;
+  const writers = formData.get('writers') as string || null;
+  const publisher = formData.get('publisher') as string || null;
 
   // Get all audio files
   const files: File[] = [];
@@ -54,6 +57,9 @@ export async function POST(request: NextRequest) {
     energy,
     mood,
     notes,
+    producers: producers || profile?.full_name || null,
+    writers: writers || null,
+    publisher: publisher,
     status: 'Unreleased (Complete)',
     has_main: hasMain,
     has_clean: hasClean,

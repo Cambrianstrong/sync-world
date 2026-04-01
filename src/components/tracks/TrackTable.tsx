@@ -1,17 +1,19 @@
 'use client';
 
-import { useState } from 'react';
 import type { Track } from '@/lib/types';
 import Badge, { statusBadgeVariant, syncBadgeVariant } from '@/components/ui/Badge';
 import EnergyBar from '@/components/ui/EnergyBar';
 import VersionDots from '@/components/ui/VersionDots';
 import { useCart } from '@/contexts/CartContext';
+import { useAudio } from '@/contexts/AudioContext';
+import { PlayIcon, PauseIcon, LoadingIcon } from '@/components/ui/Icons';
 
 
 interface TrackTableProps {
   tracks: Track[];
   onView: (track: Track) => void;
   showCart?: boolean;
+  selectedIndex?: number;
 }
 
 const thStyle: React.CSSProperties = {
@@ -25,61 +27,18 @@ const tdStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--border)', verticalAlign: 'middle',
 };
 
-export default function TrackTable({ tracks, onView, showCart = false }: TrackTableProps) {
+export default function TrackTable({ tracks, onView, showCart = false, selectedIndex = -1 }: TrackTableProps) {
   const { addToCart, removeFromCart, isInCart } = useCart();
-  const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
-  const [loadingPlay, setLoadingPlay] = useState<string | null>(null);
+  const { track: currentTrack, playing, loading: audioLoading, play, pause } = useAudio();
 
   async function handlePlay(track: Track) {
     // If already playing this track, pause it
-    if (playingTrackId === track.id && audioElement) {
-      audioElement.pause();
-      setPlayingTrackId(null);
-      setAudioElement(null);
+    if (currentTrack?.id === track.id && playing) {
+      pause();
       return;
     }
-
-    // Stop any currently playing audio
-    if (audioElement) {
-      audioElement.pause();
-    }
-
-    setLoadingPlay(track.id);
-
-    try {
-      const res = await fetch(`/api/play?trackId=${encodeURIComponent(track.id)}`);
-      const json = await res.json();
-
-      if (!res.ok || !json.signedUrl) {
-        alert(json.error || 'Could not load audio file.');
-        setLoadingPlay(null);
-        return;
-      }
-
-      const audio = new Audio(json.signedUrl);
-
-      audio.onerror = (e) => {
-        console.error('[Play] Audio error:', e);
-        alert('Audio playback failed. The file may be in an unsupported format.');
-        setPlayingTrackId(null);
-        setAudioElement(null);
-      };
-
-      audio.onended = () => {
-        setPlayingTrackId(null);
-        setAudioElement(null);
-      };
-
-      await audio.play();
-      setAudioElement(audio);
-      setPlayingTrackId(track.id);
-    } catch (err) {
-      console.error('[Play] Error:', err);
-      alert('Playback error: ' + (err instanceof Error ? err.message : 'unknown'));
-    }
-
-    setLoadingPlay(null);
+    // Play the track via global AudioContext
+    await play(track);
   }
 
   return (
@@ -113,10 +72,11 @@ export default function TrackTable({ tracks, onView, showCart = false }: TrackTa
             </td>
           </tr>
         ) : (
-          tracks.map(track => (
+          tracks.map((track, idx) => (
             <tr key={track.id}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.015)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              onMouseLeave={e => (e.currentTarget.style.background = idx === selectedIndex ? 'var(--accent-light)' : 'transparent')}
+              style={idx === selectedIndex ? { background: 'var(--accent-light)' } : undefined}
             >
               <td style={tdStyle}>
                 <div style={{ fontWeight: 600 }}>{track.title}</div>
@@ -166,18 +126,19 @@ export default function TrackTable({ tracks, onView, showCart = false }: TrackTa
                   </button>
                   <button
                     onClick={() => handlePlay(track)}
-                    title={playingTrackId === track.id ? 'Pause' : 'Play'}
-                    disabled={loadingPlay === track.id}
+                    title={currentTrack?.id === track.id && playing ? 'Pause' : 'Play'}
+                    disabled={audioLoading && currentTrack?.id === track.id}
                     style={{
                       padding: '6px 12px', borderRadius: 8, border: 'none',
-                      background: playingTrackId === track.id ? 'var(--green)' : 'var(--accent)',
-                      color: '#fff', fontSize: 12, cursor: loadingPlay === track.id ? 'wait' : 'pointer',
+                      background: currentTrack?.id === track.id && playing ? 'var(--green)' : 'var(--accent)',
+                      color: '#fff', fontSize: 12,
+                      cursor: (audioLoading && currentTrack?.id === track.id) ? 'wait' : 'pointer',
                       fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       minWidth: 36,
                     }}
                   >
-                    {loadingPlay === track.id ? '...' : playingTrackId === track.id ? '\u25AE\u25AE' : '\u25B6'}
+                    {(audioLoading && currentTrack?.id === track.id) ? <LoadingIcon size={12} color="#fff" /> : (currentTrack?.id === track.id && playing) ? <PauseIcon size={12} color="#fff" /> : <PlayIcon size={12} color="#fff" />}
                   </button>
                 </div>
               </td>
