@@ -501,7 +501,7 @@ export default function RequestsPage() {
                   {/* Expanded */}
                   {isExpanded && (
                     <div style={{ padding: '0 18px 18px', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 20 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(250px, 100%), 1fr))', gap: 20 }}>
                         {(b.creative_themes || b.emotions || b.story_context) && (
                           <div>
                             <div style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Creative Direction</div>
@@ -779,7 +779,7 @@ export default function RequestsPage() {
                           <label style={labelStyle}>Genre</label>
                           <GenreTagInput value={uploadShared.genre} onChange={v => setUploadShared(p => ({ ...p, genre: v }))} placeholder="Select genre..." />
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div className="grid-2col" style={{ gap: 10 }}>
                           <div>
                             <label style={labelStyle}>Vocal Type</label>
                             <select value={uploadShared.vocal} onChange={e => setUploadShared(p => ({ ...p, vocal: e.target.value }))} style={{ width: '100%' }}>

@@ -316,7 +316,7 @@ export default function BrowsePage() {
                 marginBottom: 12,
               }}
             />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(160px, 100%), 1fr))', gap: 8 }}>
               {[
                 { value: filterStatus, onChange: setFilterStatus, options: ['Released', 'Unreleased (Complete)', 'Demo (WIP)'], placeholder: 'All Statuses' },
                 { value: filterEnergy, onChange: setFilterEnergy, options: ['Low', 'Medium', 'High'], placeholder: 'All Energy' },
