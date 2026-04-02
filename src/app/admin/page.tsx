@@ -741,7 +741,7 @@ export default function AdminPage() {
                       disabled={audioLoading && currentTrack?.id === t.id}
                       style={{
                         flex: 1, padding: '8px 0', borderRadius: 8, border: 'none',
-                        background: currentTrack?.id === t.id && playing ? 'var(--green)' : 'var(--accent)',
+                        background: currentTrack?.id === t.id && playing ? 'var(--green)' : '#6366f1',
                         color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                         fontFamily: "'DM Sans', sans-serif",
                       }}
