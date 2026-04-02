@@ -111,6 +111,11 @@ export default function TopNav({ role, userName }: TopNavProps) {
             {userName}
           </Link>
         )}
+        {role && (
+          <button onClick={handleSignOut} className="nav-signout">
+            Sign Out
+          </button>
+        )}
         {!role && (
           <Link href="/login" className="nav-signin">
             Sign In

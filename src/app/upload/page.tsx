@@ -241,7 +241,7 @@ export default function UploadPage() {
             file_name: file.name,
             file_size: file.size,
             storage_path: storagePath,
-            format: ext as 'WAV' | 'AIFF' | 'MP3',
+            format: ext as 'WAV' | 'AIFF' | 'MP3' | 'M4A' | 'AAC' | 'FLAC' | 'OGG',
           }),
         });
 

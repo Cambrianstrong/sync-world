@@ -350,6 +350,23 @@ audio {
   font-weight: 500;
 }
 
+.nav-signout {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: none;
+  color: rgba(255,255,255,0.7);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: none;
+}
+.nav-signout:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+@media (min-width: 769px) {
+  .nav-signout { display: block; }
+}
+
 .nav-mobile-only {
   display: none;
 }
