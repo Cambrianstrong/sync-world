@@ -12,6 +12,7 @@ import DropZone from '@/components/upload/DropZone';
 import Badge, { statusBadgeVariant, syncBadgeVariant } from '@/components/ui/Badge';
 import Notification, { useNotification } from '@/components/ui/Notification';
 import { useAuth } from '@/hooks/useAuth';
+import { uploadAllSongs, validateAudioFile, type SongUploadProgress } from '@/lib/upload-pipeline';
 
 interface SongGroup {
   name: string;
@@ -86,6 +87,7 @@ export default function UploadPage() {
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState<Partial<Track>>({});
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<SongUploadProgress[]>([]);
   const { notif, notify } = useNotification();
 
   useEffect(() => {
@@ -172,10 +174,23 @@ export default function UploadPage() {
 
   async function submitAll() {
     setSubmitting(true);
+    setUploadProgress([]);
     const supabase = createClient();
-    let successCount = 0;
 
+    // Pre-validate all files before starting any uploads
     for (const song of songGroups) {
+      for (const file of song.files) {
+        const validation = validateAudioFile(file);
+        if (!validation.valid) {
+          notify(`Invalid file "${file.name}": ${validation.error}`, 'error');
+          setSubmitting(false);
+          return;
+        }
+      }
+    }
+
+    // Build songs array for the pipeline
+    const songs = songGroups.map((song) => {
       const trackData = {
         title: song.title,
         artist: song.artist,
@@ -203,66 +218,54 @@ export default function UploadPage() {
         submitted_by: profile?.id || null,
       };
 
-      const { data: track, error } = await supabase
-        .from('tracks')
-        .insert(trackData)
-        .select()
-        .single();
-
-      if (error) {
-        notify(`Error on "${song.title}": ${error.message}`, 'error');
-        continue;
-      }
-
-      // Upload audio files
-      for (const file of song.files) {
-        const ext = file.name.split('.').pop()?.toUpperCase() || 'MP3';
+      const filesWithVersions = song.files.map((file) => {
         const versionType = file.name.toLowerCase().includes('clean') ? 'clean'
           : file.name.toLowerCase().includes('inst') ? 'instrumental'
           : file.name.toLowerCase().includes('acap') ? 'acapella'
           : 'main';
-
-        const storagePath = `${track.id}/${versionType}/${file.name}`;
-        const { error: uploadError } = await supabase.storage.from('tracks').upload(storagePath, file);
-
-        if (uploadError) {
-          notify(`File upload error for "${file.name}": ${uploadError.message}`, 'error');
-          console.error('Storage upload error:', uploadError);
-          continue;
-        }
-
-        // Register file via server API (bypasses RLS)
-        const regRes = await fetch('/api/tracks/register-file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            track_id: track.id,
-            version_type: versionType,
-            file_name: file.name,
-            file_size: file.size,
-            storage_path: storagePath,
-            format: ext as 'WAV' | 'AIFF' | 'MP3' | 'M4A' | 'AAC' | 'FLAC' | 'OGG',
-          }),
-        });
-
-        if (!regRes.ok) {
-          const regErr = await regRes.json().catch(() => ({}));
-          notify(`File record error for "${file.name}": ${regErr.error || 'Unknown error'}`, 'error');
-          console.error('track_files register error:', regErr);
-        }
-      }
-
-      await supabase.from('activity_log').insert({
-        type: 'upload',
-        text: `'${track.title}' submitted by ${track.artist}`,
-        track_id: track.id,
-        user_id: profile?.id || null,
+        return { file, versionType };
       });
 
-      successCount++;
+      return { trackData, files: filesWithVersions, title: song.title };
+    });
+
+    const { totalSuccess, totalFailed, results } = await uploadAllSongs(
+      {
+        supabase,
+        onProgress: (progress) => setUploadProgress([...progress]),
+        maxRetries: 3,
+        retryBaseDelayMs: 1000,
+      },
+      songs
+    );
+
+    // Log activity for successful uploads
+    for (const result of results) {
+      if (result.status === 'complete' && result.trackId) {
+        const song = songGroups.find((s) => s.title === result.songTitle);
+        await supabase.from('activity_log').insert({
+          type: 'upload',
+          text: `'${result.songTitle}' submitted by ${song?.artist || 'Unknown'}`,
+          track_id: result.trackId,
+          user_id: profile?.id || null,
+        });
+      }
     }
 
-    notify(`${successCount} track${successCount !== 1 ? 's' : ''} submitted to catalog!`, 'success');
+    // Show per-song results
+    if (totalFailed > 0) {
+      const failedSongs = results.filter((r) => r.status === 'failed' || r.status === 'partial');
+      for (const failed of failedSongs) {
+        notify(`Failed: "${failed.songTitle}" — ${failed.error || 'Upload error'}`, 'error');
+      }
+    }
+    if (totalSuccess > 0) {
+      notify(`${totalSuccess} track${totalSuccess !== 1 ? 's' : ''} submitted to catalog!`, 'success');
+    }
+    if (totalSuccess === 0 && totalFailed > 0) {
+      notify('All uploads failed. Check the errors above and try again.', 'error');
+    }
+
     setFiles([]);
     setSongGroups([]);
     setStep('upload');
@@ -388,7 +391,7 @@ export default function UploadPage() {
               flex: 1, padding: '12px 16px', borderRadius: 8, textAlign: 'center',
               fontSize: 13, fontWeight: 600,
               background: step === s.key ? 'var(--accent)' : 'var(--surface)',
-              color: step === s.key ? '#fff' : 'var(--dim)',
+              color: step === s.key ? '#000' : 'var(--dim)',
               border: `1px solid ${step === s.key ? 'var(--accent)' : 'var(--border)'}`,
             }}>
               {s.label}
@@ -735,6 +738,56 @@ export default function UploadPage() {
                 );
               })()}
             </div>
+
+            {/* Upload Progress */}
+            {uploadProgress.length > 0 && (
+              <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {uploadProgress.map((song, i) => (
+                  <div key={i} style={{
+                    padding: 16, borderRadius: 8,
+                    background: song.status === 'complete' ? 'rgba(34,197,94,0.08)'
+                      : song.status === 'failed' ? 'rgba(239,68,68,0.08)'
+                      : 'var(--surface)',
+                    border: `1px solid ${song.status === 'complete' ? 'rgba(34,197,94,0.3)'
+                      : song.status === 'failed' ? 'rgba(239,68,68,0.3)'
+                      : 'var(--border)'}`,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <strong style={{ fontSize: 14 }}>{song.songTitle}</strong>
+                      <span style={{
+                        fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600,
+                        background: song.status === 'complete' ? 'rgba(34,197,94,0.15)' : song.status === 'failed' ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)',
+                        color: song.status === 'complete' ? '#22c55e' : song.status === 'failed' ? '#ef4444' : '#3b82f6',
+                      }}>
+                        {song.status === 'in_progress' ? 'Uploading...' : song.status === 'complete' ? 'Done' : song.status === 'failed' ? 'Failed' : song.status === 'partial' ? 'Partial' : 'Waiting'}
+                      </span>
+                    </div>
+                    {song.error && (
+                      <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 8 }}>{song.error}</div>
+                    )}
+                    {song.files.map((file, j) => (
+                      <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 4 }}>
+                        <span style={{
+                          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                          background: file.status === 'complete' ? '#22c55e'
+                            : file.status === 'failed' ? '#ef4444'
+                            : file.status === 'pending' ? 'var(--border)'
+                            : '#3b82f6',
+                        }} />
+                        <span style={{ flex: 1, opacity: file.status === 'pending' ? 0.5 : 1 }}>{file.fileName}</span>
+                        {file.status === 'uploading' && (
+                          <span style={{ color: '#3b82f6', fontWeight: 500 }}>{file.progress}%</span>
+                        )}
+                        {file.status === 'verifying_storage' && <span style={{ color: '#f59e0b' }}>Verifying...</span>}
+                        {file.status === 'registering' && <span style={{ color: '#8b5cf6' }}>Registering...</span>}
+                        {file.status === 'rolling_back' && <span style={{ color: '#ef4444' }}>Rolling back...</span>}
+                        {file.error && <span style={{ color: '#ef4444' }}>{file.error}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
