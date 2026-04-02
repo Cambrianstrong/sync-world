@@ -36,6 +36,15 @@ export default function AdminPage() {
   useEffect(() => {
     loadData();
     loadCategories();
+    // Auto-repair tracks with missing file records on admin load
+    fetch('/api/tracks/repair', { method: 'POST' })
+      .then(r => r.json())
+      .then(json => {
+        if (json.totalRepaired > 0) {
+          notify(`Auto-repaired ${json.totalRepaired} track(s)`, 'success');
+        }
+      })
+      .catch(() => {});
   }, []);
 
   async function loadCategories() {
