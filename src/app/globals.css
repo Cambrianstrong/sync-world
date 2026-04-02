@@ -482,6 +482,12 @@ audio {
 @media (max-width: 768px) {
   .page-container {
     padding: 16px;
+    overflow-x: hidden;
+  }
+
+  input, select, textarea {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .top-nav {

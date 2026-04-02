@@ -550,20 +550,21 @@ export default function UploadPage() {
                   onClick={() => setExpandedSong(expandedSong === i ? null : i)}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '16px 20px', cursor: 'pointer',
+                    padding: '16px 20px', cursor: 'pointer', gap: 12,
+                    flexWrap: 'wrap',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: 8, background: 'var(--accent)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                       fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, color: '#fff',
                     }}>
                       {i + 1}
                     </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{song.title}</div>
-                      <div style={{ fontSize: 12, color: 'var(--dim)' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {song.artist} &middot; {song.files.length} file{song.files.length !== 1 ? 's' : ''} &middot; {song.genre}
                       </div>
                     </div>
@@ -595,7 +596,7 @@ export default function UploadPage() {
 
                 {/* Expanded Song Details */}
                 {expandedSong === i && (
-                  <div style={{ padding: '0 20px 20px', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ padding: '0 16px 20px', borderTop: '1px solid var(--border)', overflowX: 'hidden' }}>
                     <div className="grid-2col" style={{ paddingTop: 16 }}>
                       <div style={formGroupStyle}>
                         <label style={labelStyle}>Song Title *</label>
