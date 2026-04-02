@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Repair endpoint: finds tracks with no track_files records and
@@ -11,7 +12,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
+  const admin = createAdminClient();
+
+  const { data: profile } = await admin
     .from('profiles')
     .select('role')
     .eq('id', user.id)
@@ -22,13 +25,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Get all tracks
-  const { data: tracks } = await supabase
+  const { data: tracks } = await admin
     .from('tracks')
     .select('id, title, artist')
     .order('date_added', { ascending: false });
 
   // Get all existing track_files
-  const { data: existingFiles } = await supabase
+  const { data: existingFiles } = await admin
     .from('track_files')
     .select('track_id');
 
@@ -36,34 +39,32 @@ export async function POST(request: NextRequest) {
   const tracksNoFiles = (tracks || []).filter(t => !tracksWithFiles.has(t.id));
 
   if (tracksNoFiles.length === 0) {
-    return NextResponse.json({ message: 'All tracks have files', repaired: 0 });
+    return NextResponse.json({ message: 'All tracks have files', repaired: 0, totalRepaired: 0 });
   }
 
   const repaired: { trackId: string; title: string; filesFound: number }[] = [];
   const failed: { trackId: string; title: string; error: string }[] = [];
 
   for (const track of tracksNoFiles) {
-    // Scan storage folders for this track: check main, clean, instrumental, acapella
     const versionTypes = ['main', 'clean', 'instrumental', 'acapella'];
     let filesFound = 0;
 
     for (const versionType of versionTypes) {
       const folderPath = `${track.id}/${versionType}`;
-      const { data: storageFiles, error: listError } = await supabase.storage
+      const { data: storageFiles, error: listError } = await admin.storage
         .from('tracks')
         .list(folderPath);
 
       if (listError || !storageFiles || storageFiles.length === 0) continue;
 
       for (const sf of storageFiles) {
-        // Skip .emptyFolderPlaceholder and folders
         if (sf.name === '.emptyFolderPlaceholder' || !sf.name) continue;
 
         const storagePath = `${folderPath}/${sf.name}`;
         const ext = sf.name.split('.').pop()?.toUpperCase() || 'MP3';
         const format = ['WAV', 'AIFF', 'MP3', 'M4A', 'AAC', 'FLAC', 'OGG'].includes(ext) ? ext : 'MP3';
 
-        const { error: insertError } = await supabase.from('track_files').insert({
+        const { error: insertError } = await admin.from('track_files').insert({
           track_id: track.id,
           version_type: versionType,
           file_name: sf.name,

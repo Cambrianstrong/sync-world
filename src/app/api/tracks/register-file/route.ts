@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -10,7 +11,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Check user has upload permissions (admin or producer/songwriter)
-  const { data: profile } = await supabase
+  const admin = createAdminClient();
+  const { data: profile } = await admin
     .from('profiles')
     .select('role')
     .eq('id', user.id)
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  const { data, error } = await supabase.from('track_files').insert({
+  const { data, error } = await admin.from('track_files').insert({
     track_id,
     version_type,
     file_name,

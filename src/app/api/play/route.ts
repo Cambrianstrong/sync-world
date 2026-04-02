@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -15,8 +16,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
+  const admin = createAdminClient();
+
   // Get the track itself to verify
-  const { data: track } = await supabase
+  const { data: track } = await admin
     .from('tracks')
     .select('id, title, artist, genre')
     .eq('id', trackId)
@@ -27,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Get track files — only files that belong to THIS exact track
-  const { data: files, error: filesError } = await supabase
+  const { data: files, error: filesError } = await admin
     .from('track_files')
     .select('id, storage_path, version_type, file_name, track_id')
     .eq('track_id', trackId);
@@ -52,7 +55,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Generate signed URL
-  const { data: urlData, error: urlError } = await supabase.storage
+  const { data: urlData, error: urlError } = await admin.storage
     .from('tracks')
     .createSignedUrl(mainFile.storage_path, 3600);
 

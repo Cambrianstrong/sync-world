@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -9,8 +10,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
+  const admin = createAdminClient();
+
   // Check admin role
-  const { data: profile } = await supabase
+  const { data: profile } = await admin
     .from('profiles')
     .select('role')
     .eq('id', user.id)
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
 
   for (const trackId of trackIds) {
     // Get storage paths
-    const { data: files } = await supabase
+    const { data: files } = await admin
       .from('track_files')
       .select('storage_path')
       .eq('track_id', trackId);
@@ -40,16 +43,16 @@ export async function POST(request: NextRequest) {
     if (files && files.length > 0) {
       const paths = files.map(f => f.storage_path).filter(Boolean);
       if (paths.length > 0) {
-        await supabase.storage.from('tracks').remove(paths);
+        await admin.storage.from('tracks').remove(paths);
       }
     }
 
     // Delete related records
-    await supabase.from('track_files').delete().eq('track_id', trackId);
-    await supabase.from('activity_log').delete().eq('track_id', trackId);
+    await admin.from('track_files').delete().eq('track_id', trackId);
+    await admin.from('activity_log').delete().eq('track_id', trackId);
 
     // Delete the track
-    const { error } = await supabase.from('tracks').delete().eq('id', trackId);
+    const { error } = await admin.from('tracks').delete().eq('id', trackId);
     if (error) errors.push(`${trackId}: ${error.message}`);
   }
 
