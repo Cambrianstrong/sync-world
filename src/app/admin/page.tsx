@@ -695,10 +695,12 @@ export default function AdminPage() {
                 <div key={t.id} style={{
                   background: selectedTracks.has(t.id) ? 'rgba(99,102,241,0.06)' : 'var(--surface)',
                   borderRadius: 12, border: selectedTracks.has(t.id) ? '1px solid rgba(99,102,241,0.3)' : '1px solid var(--border)',
-                  padding: 14, marginBottom: 10,
+                  padding: 14, marginBottom: 10, position: 'relative' as const,
                 }}>
-                  {/* Title + artist */}
-                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{t.title}</div>
+                  {/* Checkbox top-right */}
+                  <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ position: 'absolute' as const, top: 14, right: 14 }} />
+                  {/* Title */}
+                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2, marginRight: 28 }}>{t.title}</div>
                   <div style={{ color: 'var(--dim)', fontSize: 12, marginBottom: 10 }}>{t.artist}</div>
                   {/* Badges */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
@@ -734,8 +736,7 @@ export default function AdminPage() {
                     <option value="placed">Sync: Placed</option>
                   </select>
                   {/* Actions row */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ flexShrink: 0 }} />
+                  <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => handlePlay(t)}
                       disabled={audioLoading && currentTrack?.id === t.id}
