@@ -687,37 +687,23 @@ export default function AdminPage() {
                   borderRadius: 12, border: selectedTracks.has(t.id) ? '1px solid rgba(99,102,241,0.3)' : '1px solid var(--border)',
                   padding: 14, marginBottom: 10,
                 }}>
-                  {/* Row 1: checkbox + play + title/artist */}
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+                  {/* Title + artist */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                     <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ flexShrink: 0 }} />
-                    <button
-                      onClick={() => handlePlay(t)}
-                      disabled={audioLoading && currentTrack?.id === t.id}
-                      style={{
-                        width: 36, height: 36, borderRadius: '50%', border: 'none', flexShrink: 0,
-                        background: currentTrack?.id === t.id && playing ? 'var(--green)' : 'var(--accent)',
-                        color: '#fff', fontSize: 12, cursor: (audioLoading && currentTrack?.id === t.id) ? 'wait' : 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}
-                    >
-                      {(audioLoading && currentTrack?.id === t.id) ? <LoadingIcon size={13} color="#fff" /> : (currentTrack?.id === t.id && playing) ? <PauseIcon size={13} color="#fff" /> : <PlayIcon size={13} color="#fff" />}
-                    </button>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
-                      <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
-                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
                   </div>
-                  {/* Row 2: badges + meta */}
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ color: 'var(--dim)', fontSize: 12, marginBottom: 8, paddingLeft: 28 }}>{t.artist}</div>
+                  {/* Badges */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
                     <Badge variant={statusBadgeVariant(t.status)}>
                       {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
                     </Badge>
+                    <span style={{ fontSize: 12, color: 'var(--dim)' }}>{t.genre || 'No genre'}</span>
                     {t.sync_status !== 'none' && (
                       <Badge variant={syncBadgeVariant(t.sync_status)}>
                         {t.sync_status.charAt(0).toUpperCase() + t.sync_status.slice(1)}
                       </Badge>
                     )}
-                    <span style={{ fontSize: 12, color: 'var(--dim)' }}>{t.genre || 'No genre'}</span>
                     <span style={{
                       fontSize: 12, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
                       color: t.download_count > 0 ? 'var(--orange)' : 'var(--dim)',
@@ -725,15 +711,15 @@ export default function AdminPage() {
                       {t.download_count} DLs
                     </span>
                   </div>
-                  {/* Row 3: actions */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {/* Sync dropdown */}
+                  <div style={{ marginBottom: 10 }}>
                     <select
                       value={t.sync_status}
                       onChange={e => updateSyncStatus(t.id, e.target.value)}
                       style={{
-                        padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
-                        background: 'var(--bg)', color: 'var(--text)', fontSize: 12,
-                        fontFamily: "'DM Sans', sans-serif", flex: 1, minWidth: 0,
+                        width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)',
+                        background: 'var(--bg)', color: 'var(--text)', fontSize: 13,
+                        fontFamily: "'DM Sans', sans-serif",
                       }}
                     >
                       <option value="none">Sync: None</option>
@@ -741,19 +727,34 @@ export default function AdminPage() {
                       <option value="chosen">Sync: Chosen</option>
                       <option value="placed">Sync: Placed</option>
                     </select>
+                  </div>
+                  {/* Actions row */}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => handlePlay(t)}
+                      disabled={audioLoading && currentTrack?.id === t.id}
+                      style={{
+                        flex: 1, padding: '8px 0', borderRadius: 8, border: 'none',
+                        background: currentTrack?.id === t.id && playing ? 'var(--green)' : 'var(--accent)',
+                        color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      {(audioLoading && currentTrack?.id === t.id) ? 'Loading...' : (currentTrack?.id === t.id && playing) ? 'Pause' : 'Play'}
+                    </button>
                     <button onClick={() => openEdit(t)} style={{
-                      padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
-                      background: 'rgba(0,0,0,0.02)', color: 'var(--text)', fontSize: 12,
-                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0,
+                      flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border)',
+                      background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 500,
+                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                     }}>
                       Edit
                     </button>
                     <button onClick={() => deleteTrack(t.id)} style={{
-                      padding: '6px 14px', borderRadius: 6, border: '1px solid var(--red)',
-                      background: 'transparent', color: 'var(--red)', fontSize: 12,
-                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0,
+                      flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--red)',
+                      background: 'transparent', color: 'var(--red)', fontSize: 13, fontWeight: 500,
+                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                     }}>
-                      Del
+                      Delete
                     </button>
                   </div>
                 </div>
