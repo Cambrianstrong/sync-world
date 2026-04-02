@@ -688,11 +688,8 @@ export default function AdminPage() {
                   padding: 14, marginBottom: 10,
                 }}>
                   {/* Title + artist */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ flexShrink: 0 }} />
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
-                  </div>
-                  <div style={{ color: 'var(--dim)', fontSize: 12, marginBottom: 8, paddingLeft: 28 }}>{t.artist}</div>
+                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{t.title}</div>
+                  <div style={{ color: 'var(--dim)', fontSize: 12, marginBottom: 10 }}>{t.artist}</div>
                   {/* Badges */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
                     <Badge variant={statusBadgeVariant(t.status)}>
@@ -712,24 +709,23 @@ export default function AdminPage() {
                     </span>
                   </div>
                   {/* Sync dropdown */}
-                  <div style={{ marginBottom: 10 }}>
-                    <select
-                      value={t.sync_status}
-                      onChange={e => updateSyncStatus(t.id, e.target.value)}
-                      style={{
-                        width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)',
-                        background: 'var(--bg)', color: 'var(--text)', fontSize: 13,
-                        fontFamily: "'DM Sans', sans-serif",
-                      }}
-                    >
-                      <option value="none">Sync: None</option>
-                      <option value="liked">Sync: Liked</option>
-                      <option value="chosen">Sync: Chosen</option>
-                      <option value="placed">Sync: Placed</option>
-                    </select>
-                  </div>
+                  <select
+                    value={t.sync_status}
+                    onChange={e => updateSyncStatus(t.id, e.target.value)}
+                    style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)',
+                      background: 'var(--bg)', color: 'var(--text)', fontSize: 13,
+                      fontFamily: "'DM Sans', sans-serif", marginBottom: 10,
+                    }}
+                  >
+                    <option value="none">Sync: None</option>
+                    <option value="liked">Sync: Liked</option>
+                    <option value="chosen">Sync: Chosen</option>
+                    <option value="placed">Sync: Placed</option>
+                  </select>
                   {/* Actions row */}
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ flexShrink: 0 }} />
                     <button
                       onClick={() => handlePlay(t)}
                       disabled={audioLoading && currentTrack?.id === t.id}
@@ -740,7 +736,7 @@ export default function AdminPage() {
                         fontFamily: "'DM Sans', sans-serif",
                       }}
                     >
-                      {(audioLoading && currentTrack?.id === t.id) ? 'Loading...' : (currentTrack?.id === t.id && playing) ? 'Pause' : 'Play'}
+                      {(audioLoading && currentTrack?.id === t.id) ? '...' : (currentTrack?.id === t.id && playing) ? 'Pause' : 'Play'}
                     </button>
                     <button onClick={() => openEdit(t)} style={{
                       flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border)',
