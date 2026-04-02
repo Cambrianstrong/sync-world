@@ -7,14 +7,19 @@ import { PlayIcon, PauseIcon, LoadingIcon } from '@/components/ui/Icons';
 
 export function CartButton() {
   const { count } = useCart();
+  const { track: activeTrack } = useAudio();
   const [open, setOpen] = useState(false);
+
+  // Move cart button up when mini player is showing
+  const bottomOffset = activeTrack ? 80 : 24;
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 100,
+          position: 'fixed', bottom: bottomOffset, right: 24, zIndex: 100,
+          transition: 'bottom 0.2s ease',
           padding: '0 20px', height: 44, borderRadius: 12,
           border: '1px solid var(--border)',
           background: 'var(--surface-solid)', color: 'var(--text)', fontSize: 12, fontWeight: 700,
