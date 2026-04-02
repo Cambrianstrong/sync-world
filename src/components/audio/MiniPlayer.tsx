@@ -107,7 +107,7 @@ export default function MiniPlayer() {
       {/* Main content row */}
       <div className="mini-player-content">
         {/* Track info — tap to expand */}
-        <div className="mini-player-info" onClick={() => setExpanded(!expanded)}>
+        <div className="mini-player-info" role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setExpanded(!expanded)} onClick={() => setExpanded(!expanded)}>
           {/* Waveform animation when playing */}
           {playing && (
             <div className="mini-player-wave">

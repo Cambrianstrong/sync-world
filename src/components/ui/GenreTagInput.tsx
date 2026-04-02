@@ -84,12 +84,12 @@ export default function GenreTagInput({ value, onChange, placeholder }: GenreTag
 
   return (
     <div style={{ position: 'relative' }}>
-      <div style={{
+      <div role="textbox" tabIndex={0} style={{
         display: 'flex', flexWrap: 'wrap', gap: 6, padding: '6px 10px',
         border: '1px solid var(--border)', borderRadius: 10,
         background: 'var(--surface-solid)', minHeight: 40, alignItems: 'center',
         cursor: 'text', boxShadow: 'var(--shadow-sm)',
-      }} onClick={() => inputRef.current?.focus()}>
+      }} onClick={() => inputRef.current?.focus()} onKeyDown={e => e.key === 'Enter' && inputRef.current?.focus()}>
         {selected.map(g => (
           <span key={g} style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,

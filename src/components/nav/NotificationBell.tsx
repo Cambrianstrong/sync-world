@@ -151,6 +151,7 @@ export default function NotificationBell() {
               notifications.map(notif => (
                 <div
                   key={notif.id}
+                  role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && handleClick(notif)}
                   onClick={() => handleClick(notif)}
                   style={{
                     padding: '12px 16px', borderBottom: '1px solid var(--border)',

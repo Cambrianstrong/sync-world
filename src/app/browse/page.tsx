@@ -410,6 +410,7 @@ export default function BrowsePage() {
                     <div
                       key={`song-${cat.id}`}
                       className="genre-box"
+                      role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && (() => { setActiveSection('songs'); setFilterGenre(cat.name); })()}
                       onClick={() => { setActiveSection('songs'); setFilterGenre(cat.name); }}
                       style={{
                         background: cat.color || FALLBACK_COLOR,
@@ -427,6 +428,7 @@ export default function BrowsePage() {
                 {/* View All Songs card */}
                 <div
                   className="genre-box"
+                  role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && (() => { setActiveSection('songs'); setFilterGenre('__all__'); })()}
                   onClick={() => { setActiveSection('songs'); setFilterGenre('__all__'); }}
                   style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #4b5563 100%)' }}
                 >
@@ -463,6 +465,7 @@ export default function BrowsePage() {
                     <div
                       key={`inst-${cat.id}`}
                       className="genre-box"
+                      role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && (() => { setActiveSection('instrumentals'); setFilterGenre(cat.name); })()}
                       onClick={() => { setActiveSection('instrumentals'); setFilterGenre(cat.name); }}
                       style={{
                         background: cat.color || FALLBACK_COLOR,
@@ -481,6 +484,7 @@ export default function BrowsePage() {
                 {instrumentalTracks.length > 0 && (
                   <div
                     className="genre-box"
+                    role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && (() => { setActiveSection('instrumentals'); setFilterGenre('__all__'); })()}
                     onClick={() => { setActiveSection('instrumentals'); setFilterGenre('__all__'); }}
                     style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #4b5563 100%)' }}
                   >
@@ -567,8 +571,8 @@ export default function BrowsePage() {
 
         {/* Shortcuts overlay */}
         {showShortcuts && (
-          <div className="shortcuts-overlay" onClick={() => setShowShortcuts(false)}>
-            <div className="shortcuts-panel" onClick={e => e.stopPropagation()}>
+          <div className="shortcuts-overlay" role="presentation" onClick={() => setShowShortcuts(false)}>
+            <div className="shortcuts-panel" role="dialog" aria-label="Keyboard shortcuts" onClick={e => e.stopPropagation()}>
               <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, marginBottom: 16 }}>
                 Keyboard Shortcuts
               </h3>

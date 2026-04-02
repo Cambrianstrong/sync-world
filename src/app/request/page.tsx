@@ -120,7 +120,7 @@ export default function RequestPage() {
             padding: 24, background: 'var(--surface-solid)', border: '1px solid var(--border)',
             borderRadius: 16, boxShadow: 'var(--shadow-sm)', marginBottom: 20,
           }}>
-            <h3 style={{ fontSize: 15, marginBottom: 4 }}>Project & Campaign</h3>
+            <h2 style={{ fontSize: 15, marginBottom: 4 }}>Project & Campaign</h2>
             <p style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 16 }}>
               What is this music for?
             </p>
@@ -164,7 +164,7 @@ export default function RequestPage() {
             padding: 24, background: 'var(--surface-solid)', border: '1px solid var(--border)',
             borderRadius: 16, boxShadow: 'var(--shadow-sm)', marginBottom: 20,
           }}>
-            <h3 style={{ fontSize: 15, marginBottom: 4 }}>Creative Direction & Themes</h3>
+            <h2 style={{ fontSize: 15, marginBottom: 4 }}>Creative Direction & Themes</h2>
             <p style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 16 }}>
               Describe the story, emotion, and creative vision.
             </p>
@@ -205,7 +205,7 @@ export default function RequestPage() {
             padding: 24, background: 'var(--surface-solid)', border: '1px solid var(--border)',
             borderRadius: 16, boxShadow: 'var(--shadow-sm)', marginBottom: 20,
           }}>
-            <h3 style={{ fontSize: 15, marginBottom: 4 }}>Music Direction & Sound</h3>
+            <h2 style={{ fontSize: 15, marginBottom: 4 }}>Music Direction & Sound</h2>
             <p style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 16 }}>
               Describe the sound, genre, and musical qualities you need.
             </p>
@@ -274,7 +274,7 @@ export default function RequestPage() {
             padding: 24, background: 'var(--surface-solid)', border: '1px solid var(--border)',
             borderRadius: 16, boxShadow: 'var(--shadow-sm)', marginBottom: 20,
           }}>
-            <h3 style={{ fontSize: 15, marginBottom: 4 }}>Reference Tracks & Artists</h3>
+            <h2 style={{ fontSize: 15, marginBottom: 4 }}>Reference Tracks & Artists</h2>
             <p style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 16 }}>
               Help us understand the sound by pointing to existing music.
             </p>
@@ -305,7 +305,7 @@ export default function RequestPage() {
             padding: 24, background: 'var(--surface-solid)', border: '1px solid var(--border)',
             borderRadius: 16, boxShadow: 'var(--shadow-sm)', marginBottom: 20,
           }}>
-            <h3 style={{ fontSize: 15, marginBottom: 4 }}>Additional Details</h3>
+            <h2 style={{ fontSize: 15, marginBottom: 4 }}>Additional Details</h2>
             <p style={{ fontSize: 12, color: 'var(--dim)', marginBottom: 16 }}>
               Anything else we should know, plus contact info for follow-up.
             </p>

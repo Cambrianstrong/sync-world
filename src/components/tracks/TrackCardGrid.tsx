@@ -75,6 +75,7 @@ export default function TrackCardGrid({ tracks, onView, showCart = false }: Trac
           <div
             key={track.id}
             className="track-card"
+            role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && onView(track)}
             onClick={() => onView(track)}
             style={{
               background: genreGradient(track.genre || '', i),

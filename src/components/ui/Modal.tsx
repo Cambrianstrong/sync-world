@@ -10,6 +10,7 @@ export default function Modal({ open, onClose, children }: ModalProps) {
   if (!open) return null;
   return (
     <div
+      role="presentation"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.2)', zIndex: 100,

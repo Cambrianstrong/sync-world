@@ -435,9 +435,9 @@ export default function UploadPage() {
               padding: 20, background: 'rgba(0,0,0,0.02)',
               border: '1px solid var(--border)', borderRadius: 12, marginBottom: 24,
             }}>
-              <h3 style={{ fontSize: 15, marginBottom: 4 }}>
+              <h2 style={{ fontSize: 15, marginBottom: 4 }}>
                 Shared metadata for {songGroups.length} song{songGroups.length !== 1 ? 's' : ''}
-              </h3>
+              </h2>
               <p style={{ fontSize: 13, color: 'var(--dim)' }}>
                 These values will apply to all songs. You can override per song in the next step.
               </p>
@@ -547,6 +547,7 @@ export default function UploadPage() {
               }}>
                 {/* Song Header (always visible) */}
                 <div
+                  role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setExpandedSong(expandedSong === i ? null : i)}
                   onClick={() => setExpandedSong(expandedSong === i ? null : i)}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',

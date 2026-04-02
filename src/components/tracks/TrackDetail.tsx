@@ -169,6 +169,7 @@ export default function TrackDetail({ track, open, onClose, onInterest, showInte
 
   return (
     <div
+      role="presentation"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: 'fixed', inset: 0,

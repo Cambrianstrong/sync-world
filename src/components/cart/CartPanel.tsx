@@ -145,6 +145,7 @@ function CartDrawer({ onClose }: { onClose: () => void }) {
     <>
       {/* Overlay */}
       <div
+        role="presentation"
         onClick={onClose}
         style={{
           position: 'fixed', inset: 0, zIndex: 150,

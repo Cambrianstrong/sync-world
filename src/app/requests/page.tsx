@@ -430,7 +430,7 @@ export default function RequestsPage() {
                   borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
                 }}>
                   {/* Brief Header */}
-                  <div onClick={() => handleExpand(b.id)} style={{
+                  <div role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && handleExpand(b.id)} onClick={() => handleExpand(b.id)} style={{
                     padding: '16px 18px', cursor: 'pointer',
                     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
                   }}>
@@ -576,12 +576,13 @@ export default function RequestsPage() {
 
         {/* === SUBMIT MODAL === */}
         {submitBriefId && (
-          <div style={{
+          <div role="presentation" style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
             display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
             zIndex: 1000,
           }} onClick={() => setSubmitBriefId(null)}>
             <div
+              role="dialog" aria-label="Submit to brief"
               onClick={e => e.stopPropagation()}
               style={{
                 background: 'var(--surface-solid)', borderRadius: '16px 16px 0 0',
@@ -592,7 +593,7 @@ export default function RequestsPage() {
             >
               {/* Modal header with tabs */}
               <div style={{ padding: '16px 20px 0', borderBottom: '1px solid var(--border)' }}>
-                <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 12 }}>Submit to Brief</h3>
+                <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 12 }}>Submit to Brief</h2>
                 <div style={{ display: 'flex', gap: 0 }}>
                   <button
                     onClick={() => setSubmitTab('catalog')}
@@ -639,7 +640,7 @@ export default function RequestsPage() {
                     ) : filteredTracks.map(t => {
                       const selected = selectedTrackIds.includes(t.id);
                       return (
-                        <div key={t.id} onClick={() => toggleTrack(t.id)} style={{
+                        <div key={t.id} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && toggleTrack(t.id)} onClick={() => toggleTrack(t.id)} style={{
                           display: 'flex', alignItems: 'center', gap: 12,
                           padding: '10px 8px', borderBottom: '1px solid var(--border)',
                           cursor: 'pointer', borderRadius: 8,
@@ -830,11 +831,12 @@ export default function RequestsPage() {
 
         {/* Edit Brief Modal */}
         {editBrief && (
-          <div style={{
+          <div role="presentation" style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
             display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000,
           }} onClick={() => setEditBrief(null)}>
             <div
+              role="dialog" aria-label="Edit brief"
               onClick={e => e.stopPropagation()}
               style={{
                 background: 'var(--surface-solid)', borderRadius: '16px 16px 0 0',
@@ -844,7 +846,7 @@ export default function RequestsPage() {
               }}
             >
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-                <h3 style={{ fontSize: 17, fontWeight: 700 }}>Edit Brief</h3>
+                <h2 style={{ fontSize: 17, fontWeight: 700 }}>Edit Brief</h2>
                 <p style={{ fontSize: 12, color: 'var(--dim)', marginTop: 4 }}>
                   Submitted by {editBrief.user_name || 'Unknown'}{editBrief.user_email ? ` (${editBrief.user_email})` : ''}
                 </p>

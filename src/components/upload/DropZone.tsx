@@ -31,6 +31,7 @@ export default function DropZone({ files, onFilesChange }: DropZoneProps) {
   return (
     <div>
       <div
+        role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && inputRef.current?.click()}
         onClick={() => inputRef.current?.click()}
         onDragOver={e => { e.preventDefault(); setDragover(true); }}
         onDragLeave={() => setDragover(false)}

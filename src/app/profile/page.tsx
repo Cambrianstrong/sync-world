@@ -102,7 +102,7 @@ export default function ProfilePage() {
             padding: 24, background: 'var(--surface-solid)', border: '1px solid var(--border)',
             borderRadius: 16, boxShadow: 'var(--shadow-sm)', marginBottom: 20,
           }}>
-            <h3 style={{ fontSize: 15, marginBottom: 16 }}>Basic Information</h3>
+            <h2 style={{ fontSize: 15, marginBottom: 16 }}>Basic Information</h2>
             <div className="grid-2col">
               <div style={formGroupStyle}>
                 <label style={labelStyle}>Full Name</label>
@@ -152,7 +152,7 @@ export default function ProfilePage() {
             padding: 24, background: 'var(--surface-solid)', border: '1px solid var(--border)',
             borderRadius: 16, boxShadow: 'var(--shadow-sm)', marginBottom: 20,
           }}>
-            <h3 style={{ fontSize: 15, marginBottom: 16 }}>Professional Details</h3>
+            <h2 style={{ fontSize: 15, marginBottom: 16 }}>Professional Details</h2>
             <div className="grid-2col">
               {profile.role === 'producer' && (
                 <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
@@ -183,7 +183,7 @@ export default function ProfilePage() {
             padding: 24, background: 'var(--surface-solid)', border: '1px solid var(--border)',
             borderRadius: 16, boxShadow: 'var(--shadow-sm)', marginBottom: 20, opacity: 0.8,
           }}>
-            <h3 style={{ fontSize: 15, marginBottom: 16, color: 'var(--dim)' }}>Account Info</h3>
+            <h2 style={{ fontSize: 15, marginBottom: 16, color: 'var(--dim)' }}>Account Info</h2>
             <div className="grid-2col">
               <div style={formGroupStyle}>
                 <label style={labelStyle}>Email</label>

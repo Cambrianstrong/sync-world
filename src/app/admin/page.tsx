@@ -353,7 +353,7 @@ export default function AdminPage() {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showCatManager ? 16 : 0 }}>
             <div>
-              <h3 style={{ fontSize: 16, marginBottom: 2 }}>Browse Categories</h3>
+              <h2 style={{ fontSize: 16, marginBottom: 2 }}>Browse Categories</h2>
               <p style={{ fontSize: 12, color: 'var(--dim)' }}>
                 {categories.length} categories &mdash; These are the genre folders shown on the Browse page
               </p>
@@ -435,13 +435,14 @@ export default function AdminPage() {
         {/* Music Requests */}
         {musicRequests.length > 0 && (
           <div style={{ marginBottom: 28 }}>
-            <h3 style={{ fontSize: 16, marginBottom: 14 }}>
+            <h2 style={{ fontSize: 16, marginBottom: 14 }}>
               Music Requests
               <span style={{ fontSize: 12, color: 'var(--dim)', fontWeight: 400, marginLeft: 8 }}>
                 ({musicRequests.length})
               </span>
-            </h3>
-            <div className="table-scroll">
+            </h2>
+            {/* Desktop table */}
+            <div className="table-scroll pipeline-desktop">
               <table style={{
                 width: '100%', borderCollapse: 'separate', borderSpacing: 0,
                 background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
@@ -487,6 +488,39 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
+            {/* Mobile cards */}
+            <div className="pipeline-mobile">
+              {musicRequests.map((r: any) => (
+                <div key={r.id} style={{
+                  background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
+                  padding: 14, marginBottom: 10,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{r.user_name || 'Unknown'}</div>
+                      <div style={{ color: 'var(--dim)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.user_email}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--dim)', flexShrink: 0, marginLeft: 8 }}>
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                    {r.genre && <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'rgba(99,102,241,0.1)', color: 'var(--accent)' }}>{r.genre}{r.subgenre ? ` / ${r.subgenre}` : ''}</span>}
+                    {(r.mood || r.energy) && <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: 'rgba(0,0,0,0.04)', color: 'var(--dim)' }}>{[r.mood, r.energy].filter(Boolean).join(' / ')}</span>}
+                    {r.vocal && <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 6, background: 'rgba(0,0,0,0.04)', color: 'var(--dim)' }}>{r.vocal}</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--dim)', marginBottom: 6, flexWrap: 'wrap' }}>
+                    {r.project && <span><strong style={{ color: 'var(--text)' }}>Project:</strong> {r.project}</span>}
+                    {r.deadline && <span><strong style={{ color: 'var(--text)' }}>Deadline:</strong> {r.deadline}</span>}
+                  </div>
+                  {(r.description || r.reference) && (
+                    <div style={{ fontSize: 12, color: 'var(--dim)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+                      {r.description || r.reference}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -495,12 +529,12 @@ export default function AdminPage() {
           <div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <h3 style={{ fontSize: 16, margin: 0 }}>
+                <h2 style={{ fontSize: 16, margin: 0 }}>
                   Catalog Pipeline
                   <span style={{ fontSize: 12, color: 'var(--dim)', fontWeight: 400, marginLeft: 8 }}>
                     ({filteredTracks.length}{trackSearch ? ` of ${tracks.length}` : ''})
                   </span>
-                </h3>
+                </h2>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
@@ -731,7 +765,7 @@ export default function AdminPage() {
 
           {/* Activity Feed */}
           <div>
-            <h3 style={{ fontSize: 16, marginBottom: 14 }}>Activity Feed</h3>
+            <h2 style={{ fontSize: 16, marginBottom: 14 }}>Activity Feed</h2>
             <ul style={{ listStyle: 'none' }}>
               {activity.length === 0 ? (
                 <li style={{ padding: '12px 16px', color: 'var(--dim)', fontSize: 13 }}>No activity yet</li>
