@@ -36,12 +36,17 @@ export default function AdminPage() {
   useEffect(() => {
     loadData();
     loadCategories();
-    // Auto-repair tracks with missing file records on admin load
-    fetch('/api/tracks/repair', { method: 'POST' })
+    // Auto health check — fixes ghost tracks, orphan records, unlinked files
+    fetch('/api/tracks/health', { method: 'POST' })
       .then(r => r.json())
       .then(json => {
-        if (json.totalRepaired > 0) {
-          notify(`Auto-repaired ${json.totalRepaired} track(s)`, 'success');
+        if (json.fixed > 0) {
+          const parts = [];
+          if (json.ghostTracksDeleted?.length) parts.push(`${json.ghostTracksDeleted.length} ghost track(s) cleaned`);
+          if (json.orphanRecordsDeleted?.length) parts.push(`${json.orphanRecordsDeleted.length} broken record(s) removed`);
+          if (json.unlinkedFilesLinked?.length) parts.push(`${json.unlinkedFilesLinked.length} file(s) re-linked`);
+          notify(`Auto-fix: ${parts.join(', ')}`, 'success');
+          loadData(); // reload to reflect changes
         }
       })
       .catch(() => {});
@@ -224,15 +229,20 @@ export default function AdminPage() {
   }
 
   async function repairTracks() {
-    notify('Scanning for broken tracks...', 'success');
-    const res = await fetch('/api/tracks/repair', { method: 'POST' });
+    notify('Running health check...', 'success');
+    const res = await fetch('/api/tracks/health', { method: 'POST' });
     const json = await res.json();
-    if (json.totalRepaired > 0) {
-      notify(`Repaired ${json.totalRepaired} track${json.totalRepaired !== 1 ? 's' : ''}! They should play now.`, 'success');
-    } else if (json.repaired === 0 || json.totalRepaired === 0) {
-      notify('All tracks look good — nothing to repair.', 'success');
-    } else {
-      notify(`Repair error: ${json.error || 'Unknown'}`, 'error');
+    if (json.fixed > 0) {
+      const parts = [];
+      if (json.ghostTracksDeleted?.length) parts.push(`${json.ghostTracksDeleted.length} ghost track(s) cleaned`);
+      if (json.orphanRecordsDeleted?.length) parts.push(`${json.orphanRecordsDeleted.length} broken record(s) removed`);
+      if (json.unlinkedFilesLinked?.length) parts.push(`${json.unlinkedFilesLinked.length} file(s) re-linked`);
+      notify(parts.join(', '), 'success');
+      loadData();
+    } else if (json.healthy) {
+      notify('All tracks healthy — nothing to fix.', 'success');
+    } else if (json.errors?.length) {
+      notify(`Health check found issues: ${json.errors[0]}`, 'error');
     }
   }
 
