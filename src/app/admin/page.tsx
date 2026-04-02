@@ -697,10 +697,19 @@ export default function AdminPage() {
                   borderRadius: 12, border: selectedTracks.has(t.id) ? '1px solid rgba(99,102,241,0.3)' : '1px solid var(--border)',
                   padding: 14, marginBottom: 10, position: 'relative' as const,
                 }}>
-                  {/* Checkbox top-right */}
-                  <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ position: 'absolute' as const, top: 14, right: 14 }} />
+                  {/* Select button top-right */}
+                  <button onClick={() => toggleSelect(t.id)} style={{
+                    position: 'absolute' as const, top: 10, right: 10,
+                    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    border: selectedTracks.has(t.id) ? '1px solid #6366f1' : '1px solid var(--border)',
+                    background: selectedTracks.has(t.id) ? '#6366f1' : 'transparent',
+                    color: selectedTracks.has(t.id) ? '#fff' : 'var(--dim)',
+                  }}>
+                    {selectedTracks.has(t.id) ? 'Selected' : 'Select'}
+                  </button>
                   {/* Title */}
-                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2, marginRight: 28 }}>{t.title}</div>
+                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2, marginRight: 65 }}>{t.title}</div>
                   <div style={{ color: 'var(--dim)', fontSize: 12, marginBottom: 10 }}>{t.artist}</div>
                   {/* Badges */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
