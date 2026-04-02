@@ -493,38 +493,40 @@ export default function AdminPage() {
         <div className="admin-layout">
           {/* Pipeline Table */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: 16, margin: 0 }}>
-                Catalog Pipeline
-                <span style={{ fontSize: 12, color: 'var(--dim)', fontWeight: 400, marginLeft: 8 }}>
-                  ({filteredTracks.length}{trackSearch ? ` of ${tracks.length}` : ''})
-                </span>
-              </h3>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <h3 style={{ fontSize: 16, margin: 0 }}>
+                  Catalog Pipeline
+                  <span style={{ fontSize: 12, color: 'var(--dim)', fontWeight: 400, marginLeft: 8 }}>
+                    ({filteredTracks.length}{trackSearch ? ` of ${tracks.length}` : ''})
+                  </span>
+                </h3>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  value={trackSearch}
+                  onChange={e => setTrackSearch(e.target.value)}
+                  placeholder="Search tracks..."
+                  style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, flex: 1, minWidth: 0 }}
+                />
                 <button onClick={repairTracks} style={{
                   padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)',
                   background: 'transparent', color: 'var(--dim)', fontSize: 12, fontWeight: 600,
                   cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-                  whiteSpace: 'nowrap',
+                  whiteSpace: 'nowrap', flexShrink: 0,
                 }}>
-                  Repair Tracks
+                  Repair
                 </button>
                 {selectedTracks.size > 0 && (
                   <button onClick={deleteSelected} style={{
                     padding: '8px 14px', borderRadius: 8, border: '1px solid var(--red)',
                     background: 'transparent', color: 'var(--red)', fontSize: 12, fontWeight: 600,
                     cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-                    whiteSpace: 'nowrap',
+                    whiteSpace: 'nowrap', flexShrink: 0,
                   }}>
-                    Delete {selectedTracks.size} selected
+                    Delete {selectedTracks.size}
                   </button>
                 )}
-                <input
-                  value={trackSearch}
-                  onChange={e => setTrackSearch(e.target.value)}
-                  placeholder="Search tracks..."
-                  style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, minWidth: 0, maxWidth: 300, flex: 1 }}
-                />
               </div>
             </div>
             {/* Desktop table */}
@@ -699,7 +701,7 @@ export default function AdminPage() {
                       style={{
                         padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
                         background: 'var(--bg)', color: 'var(--text)', fontSize: 12,
-                        fontFamily: "'DM Sans', sans-serif", flex: 1,
+                        fontFamily: "'DM Sans', sans-serif", flex: 1, minWidth: 0,
                       }}
                     >
                       <option value="none">Sync: None</option>
@@ -710,16 +712,16 @@ export default function AdminPage() {
                     <button onClick={() => openEdit(t)} style={{
                       padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
                       background: 'rgba(0,0,0,0.02)', color: 'var(--text)', fontSize: 12,
-                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0,
                     }}>
                       Edit
                     </button>
                     <button onClick={() => deleteTrack(t.id)} style={{
                       padding: '6px 14px', borderRadius: 6, border: '1px solid var(--red)',
                       background: 'transparent', color: 'var(--red)', fontSize: 12,
-                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", flexShrink: 0,
                     }}>
-                      Delete
+                      Del
                     </button>
                   </div>
                 </div>

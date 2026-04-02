@@ -743,65 +743,99 @@ export default function UploadPage() {
             <h2 style={{ fontSize: 18, marginBottom: 16 }}>
               {profile?.role === 'admin' ? 'All Tracks' : 'My Submissions'}
             </h2>
-            <div className="table-scroll">
-            <table style={{
-              width: '100%', borderCollapse: 'separate', borderSpacing: 0,
-              background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
-            }}>
-              <thead>
-                <tr>
-                  {['Title / Artist', 'Status', 'Genre', 'Sync Status', 'Date Added', ''].map(h => (
-                    <th key={h} style={{
-                      padding: '12px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600,
-                      textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--dim)',
-                      background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid var(--border)',
-                    }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {myTracks.map(t => (
-                  <tr key={t.id}>
-                    <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ fontWeight: 600 }}>{t.title}</div>
-                      <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
-                    </td>
-                    <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-                      <Badge variant={statusBadgeVariant(t.status)}>
-                        {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
-                      </Badge>
-                    </td>
-                    <td style={{ padding: '12px 14px', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
-                      {t.genre}
-                    </td>
-                    <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-                      {t.sync_status !== 'none' ? (
-                        <Badge variant={syncBadgeVariant(t.sync_status)}>
-                          {t.sync_status.charAt(0).toUpperCase() + t.sync_status.slice(1)}
-                        </Badge>
-                      ) : (
-                        <span style={{ color: 'var(--dim)', fontSize: 12 }}>&mdash;</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 14px', fontSize: 13, color: 'var(--dim)', borderBottom: '1px solid var(--border)' }}>
-                      {t.date_added}
-                    </td>
-                    <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-                      <button onClick={() => openEditModal(t)} style={{
-                        padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
-                        background: 'var(--surface-solid)', color: 'var(--text)', fontSize: 12,
-                        fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-                        boxShadow: 'var(--shadow-sm)', whiteSpace: 'nowrap',
+            {/* Desktop table */}
+            <div className="table-scroll pipeline-desktop">
+              <table style={{
+                width: '100%', borderCollapse: 'separate', borderSpacing: 0,
+                background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
+              }}>
+                <thead>
+                  <tr>
+                    {['Title / Artist', 'Status', 'Genre', 'Sync Status', 'Date Added', ''].map(h => (
+                      <th key={h} style={{
+                        padding: '12px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600,
+                        textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--dim)',
+                        background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid var(--border)',
                       }}>
-                        Edit
-                      </button>
-                    </td>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {myTracks.map(t => (
+                    <tr key={t.id}>
+                      <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ fontWeight: 600 }}>{t.title}</div>
+                        <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
+                      </td>
+                      <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                        <Badge variant={statusBadgeVariant(t.status)}>
+                          {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
+                        </Badge>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 14, borderBottom: '1px solid var(--border)' }}>
+                        {t.genre}
+                      </td>
+                      <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                        {t.sync_status !== 'none' ? (
+                          <Badge variant={syncBadgeVariant(t.sync_status)}>
+                            {t.sync_status.charAt(0).toUpperCase() + t.sync_status.slice(1)}
+                          </Badge>
+                        ) : (
+                          <span style={{ color: 'var(--dim)', fontSize: 12 }}>&mdash;</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 13, color: 'var(--dim)', borderBottom: '1px solid var(--border)' }}>
+                        {t.date_added}
+                      </td>
+                      <td style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                        <button onClick={() => openEditModal(t)} style={{
+                          padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
+                          background: 'var(--surface-solid)', color: 'var(--text)', fontSize: 12,
+                          fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                          boxShadow: 'var(--shadow-sm)', whiteSpace: 'nowrap',
+                        }}>
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Mobile cards */}
+            <div className="pipeline-mobile">
+              {myTracks.map(t => (
+                <div key={t.id} style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 12, padding: 14, marginBottom: 10,
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{t.title}</div>
+                  <div style={{ color: 'var(--dim)', fontSize: 12, marginBottom: 8 }}>{t.artist}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+                    <Badge variant={statusBadgeVariant(t.status)}>
+                      {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
+                    </Badge>
+                    <span style={{ fontSize: 12, color: 'var(--dim)' }}>{t.genre}</span>
+                    {t.sync_status !== 'none' && (
+                      <Badge variant={syncBadgeVariant(t.sync_status)}>
+                        {t.sync_status.charAt(0).toUpperCase() + t.sync_status.slice(1)}
+                      </Badge>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: 'var(--dim)' }}>{t.date_added}</span>
+                    <button onClick={() => openEditModal(t)} style={{
+                      padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
+                      background: 'var(--surface-solid)', color: 'var(--text)', fontSize: 12,
+                      fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
