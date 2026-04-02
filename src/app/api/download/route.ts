@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -15,15 +16,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
+  const admin = createAdminClient();
+
   // Get user profile
-  const { data: profile } = await supabase
+  const { data: profile } = await admin
     .from('profiles')
     .select('full_name')
     .eq('id', user.id)
     .maybeSingle();
 
   // Get track
-  const { data: track } = await supabase
+  const { data: track } = await admin
     .from('tracks')
     .select('id, title, artist, download_count')
     .eq('id', trackId)
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Get track files
-  const { data: files } = await supabase
+  const { data: files } = await admin
     .from('track_files')
     .select('storage_path, version_type, file_name')
     .eq('track_id', trackId);
@@ -47,7 +50,7 @@ export async function GET(request: NextRequest) {
   const file = files.find(f => f.version_type === 'main') || files[0];
 
   // Create a signed URL (valid for 1 hour)
-  const { data: urlData, error: urlError } = await supabase.storage
+  const { data: urlData, error: urlError } = await admin.storage
     .from('tracks')
     .createSignedUrl(file.storage_path, 3600);
 
@@ -58,14 +61,14 @@ export async function GET(request: NextRequest) {
   const fileName = file.file_name || `${track.title} - ${track.artist}.mp3`;
 
   // Log activity and update count in background (don't block the response)
-  supabase.from('activity_log').insert({
+  admin.from('activity_log').insert({
     type: 'download',
     text: `'${track.title}' downloaded by ${profile?.full_name || user.email}`,
     track_id: track.id,
     user_id: user.id,
   }).then(() => {});
 
-  supabase.from('tracks')
+  admin.from('tracks')
     .update({ download_count: (track.download_count || 0) + 1 })
     .eq('id', track.id)
     .then(() => {});
