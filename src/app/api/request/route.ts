@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
           <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
             <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
               <div style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);padding:32px;text-align:center;">
-                <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px;">Sync World</div>
+                <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px;">RFLCT</div>
                 <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">New Music Brief</div>
               </div>
               <div style="padding:32px;">
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
               </div>
               <div style="padding:24px 32px;background:#fafafa;border-top:1px solid #eee;text-align:center;">
                 <div style="font-size:11px;color:#999;">
-                  View all briefs in your Sync World Admin Dashboard.
+                  View all briefs in your RFLCT Admin Dashboard.
                 </div>
               </div>
             </div>
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
       `;
 
       await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'Sync World <noreply@resend.dev>',
+        from: process.env.RESEND_FROM_EMAIL || 'RFLCT <noreply@resend.dev>',
         to: notifyEmails,
         subject: `New Music Brief: ${body.project || body.brand || body.genre || 'General'} - from ${userName}`,
         html,

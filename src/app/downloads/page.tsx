@@ -36,7 +36,15 @@ export default function DownloadsPage() {
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [sendEmail, setSendEmail] = useState('');
   const { notif, notify } = useNotification();
+
+  // Pre-fill email from profile
+  useEffect(() => {
+    if (profile?.email && !sendEmail) {
+      setSendEmail(profile.email);
+    }
+  }, [profile?.email]);
 
   useEffect(() => {
     loadDownloads();
@@ -66,12 +74,17 @@ export default function DownloadsPage() {
 
   async function handleSendToEmail() {
     if (cartItems.length === 0) return;
+    if (!sendEmail || !sendEmail.includes('@')) {
+      notify('Please enter a valid email address.', 'error');
+      return;
+    }
     setSending(true);
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sendToEmail: sendEmail,
           tracks: cartItems.map(item => ({
             id: item.track.id,
             title: item.track.title,
@@ -93,7 +106,7 @@ export default function DownloadsPage() {
       if (json.success) {
         notify(
           json.emailSent
-            ? `${cartItems.length} track${cartItems.length !== 1 ? 's' : ''} sent to your email! Check your inbox for secure download links.`
+            ? `${cartItems.length} track${cartItems.length !== 1 ? 's' : ''} sent to ${sendEmail}! Check inbox for secure download links.`
             : `${cartItems.length} track${cartItems.length !== 1 ? 's' : ''} processed. Email service unavailable — contact admin for links.`,
           json.emailSent ? 'success' : 'info',
         );
@@ -106,6 +119,27 @@ export default function DownloadsPage() {
     } catch {
       notify('Failed to send. Try again.', 'error');
     }
+    setSending(false);
+  }
+
+  async function handleDirectDownload(trackId: string, title?: string, artist?: string) {
+    const fileName = title && artist ? `${title} - ${artist}.mp3` : undefined;
+    const { triggerDownload } = await import('@/components/cart/CartPanel');
+    await triggerDownload(trackId, fileName);
+    setTimeout(() => loadDownloads(), 2000);
+  }
+
+  async function handleDownloadAll() {
+    if (cartItems.length === 0) return;
+    setSending(true);
+    const { triggerDownload } = await import('@/components/cart/CartPanel');
+    for (const item of cartItems) {
+      const t = item.track;
+      await triggerDownload(t.id, `${t.title} - ${t.artist}.mp3`);
+    }
+    notify(`${cartItems.length} track${cartItems.length !== 1 ? 's' : ''} downloaded!`, 'success');
+    clearCart();
+    setTimeout(() => loadDownloads(), 3000);
     setSending(false);
   }
 
@@ -139,14 +173,14 @@ export default function DownloadsPage() {
             My Cart & Downloads
           </h1>
           <p style={{ color: 'var(--dim)', fontSize: 14 }}>
-            Add tracks to your cart, then send them to your email as secure download links with full song information.
+            Add tracks to your cart, then download directly or send secure links to any email.
           </p>
         </div>
 
         {/* CART SECTION */}
         <div style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, margin: 0 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, margin: '0 0 12px' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: -3, marginRight: 8 }}>
                 <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
@@ -154,23 +188,59 @@ export default function DownloadsPage() {
               My Cart ({cartItems.length})
             </h2>
             {cartItems.length > 0 && (
-              <button
-                onClick={handleSendToEmail}
-                disabled={sending}
-                style={{
-                  padding: '10px 24px', borderRadius: 10, border: 'none',
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
-                  fontSize: 14, fontWeight: 700, cursor: sending ? 'wait' : 'pointer',
-                  fontFamily: "'DM Sans', sans-serif", boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                </svg>
-                {sending ? 'Sending...' : 'Send to My Email'}
-              </button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <input
+                    type="email"
+                    placeholder="Enter email to send links to..."
+                    value={sendEmail}
+                    onChange={e => setSendEmail(e.target.value)}
+                    style={{
+                      width: '100%', padding: '10px 14px', borderRadius: 10,
+                      border: '1px solid var(--border)', background: 'var(--bg)',
+                      color: 'var(--text)', fontSize: 14, fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleSendToEmail}
+                  disabled={sending || !sendEmail}
+                  style={{
+                    padding: '10px 24px', borderRadius: 10, border: 'none',
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
+                    fontSize: 14, fontWeight: 700,
+                    cursor: sending ? 'wait' : (!sendEmail ? 'not-allowed' : 'pointer'),
+                    fontFamily: "'DM Sans', sans-serif", boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    opacity: !sendEmail ? 0.5 : 1,
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  {sending ? 'Sending...' : 'Send via Email'}
+                </button>
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={sending}
+                  style={{
+                    padding: '10px 24px', borderRadius: 10, border: 'none',
+                    background: 'var(--green)', color: '#fff',
+                    fontSize: 14, fontWeight: 700,
+                    cursor: sending ? 'wait' : 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", boxShadow: '0 2px 8px rgba(5,150,105,0.3)',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  {sending ? 'Downloading...' : 'Download All'}
+                </button>
+              </div>
             )}
           </div>
 
@@ -224,6 +294,20 @@ export default function DownloadsPage() {
                       </span>
                     </div>
 
+                    {/* Download single */}
+                    <button
+                      onClick={() => handleDirectDownload(t.id, t.title, t.artist)}
+                      title="Download"
+                      style={{
+                        width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border)',
+                        background: 'none', color: 'var(--dim)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    </button>
                     {/* Remove */}
                     <button
                       onClick={() => removeFromCart(t.id)}
@@ -235,7 +319,9 @@ export default function DownloadsPage() {
                         fontSize: 14,
                       }}
                     >
-                      \u2715
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
                     </button>
                   </div>
                 );
@@ -245,8 +331,7 @@ export default function DownloadsPage() {
                 marginTop: 8, padding: '10px 14px', background: 'rgba(99,102,241,0.06)',
                 borderRadius: 8, fontSize: 12, color: 'var(--dim)', lineHeight: 1.5,
               }}>
-                <strong>How it works:</strong> Click &quot;Send to My Email&quot; to receive secure download links for all {cartItems.length} track{cartItems.length !== 1 ? 's' : ''}.
-                Links include full song information and expire in 24 hours. No files are downloaded directly in the app.
+                <strong>Download All</strong> saves files directly to your device. <strong>Send via Email</strong> sends secure links with full song info (links expire in 24 hours).
               </div>
             </div>
           )}

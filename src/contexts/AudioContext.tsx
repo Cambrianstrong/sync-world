@@ -108,6 +108,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const json = await res.json();
 
       if (!res.ok || !json.signedUrl) {
+        console.error('[AudioContext] Play failed:', json.error || 'No signed URL');
         setState(prev => ({ ...prev, loading: false }));
         return;
       }

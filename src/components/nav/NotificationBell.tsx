@@ -93,9 +93,9 @@ export default function NotificationBell() {
         onClick={() => setOpen(!open)}
         aria-label="Notifications"
         style={{
-          background: 'none', border: '1px solid var(--border)', borderRadius: 8,
+          background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
           padding: '5px 8px', cursor: 'pointer', lineHeight: 1,
-          color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#e0e0e8', display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 34, height: 34, position: 'relative',
         }}
       >

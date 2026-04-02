@@ -1,6 +1,6 @@
 {
-  "name": "Sync World",
-  "short_name": "Sync World",
+  "name": "RFLCT",
+  "short_name": "RFLCT",
   "description": "Music Sync Licensing Portal",
   "start_url": "/browse",
   "display": "standalone",

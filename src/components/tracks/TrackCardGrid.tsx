@@ -80,21 +80,21 @@ export default function TrackCardGrid({ tracks, onView, showCart = false }: Trac
               background: genreGradient(track.genre || '', i),
               borderColor: isPlaying ? 'var(--green)' : undefined,
               boxShadow: isPlaying ? '0 0 20px rgba(5,150,105,0.25)' : undefined,
+              justifyContent: 'space-between',
             }}
           >
-            {/* Top row: type + cart */}
+            {/* Top row: type badge + cart button */}
             <div style={{
-              position: 'absolute', top: 10, left: 12, right: 12,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
             }}>
-              <span style={{
-                fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                textTransform: 'uppercase', letterSpacing: 0.5,
-                background: 'rgba(255,255,255,0.15)', color: '#fff',
-              }}>
-                {track.vocal === 'Instrumental' ? 'INST' : 'SONG'}
-              </span>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                  textTransform: 'uppercase', letterSpacing: 0.5,
+                  background: 'rgba(255,255,255,0.15)', color: '#fff',
+                }}>
+                  {track.vocal === 'Instrumental' ? 'INST' : 'SONG'}
+                </span>
                 {isPlaying && (
                   <span style={{
                     fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
@@ -103,20 +103,22 @@ export default function TrackCardGrid({ tracks, onView, showCart = false }: Trac
                     NOW PLAYING
                   </span>
                 )}
-                {showCart && (
-                  <button
-                    onClick={(e) => handleCart(e, track)}
-                    style={{
-                      width: 22, height: 22, borderRadius: 6, border: 'none',
-                      background: inCart ? 'var(--green)' : 'rgba(255,255,255,0.2)',
-                      color: '#fff', fontSize: 11, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >
-                    {inCart ? '\u2713' : '+'}
-                  </button>
-                )}
               </div>
+              {showCart && (
+                <button
+                  onClick={(e) => handleCart(e, track)}
+                  style={{
+                    width: 30, height: 24, borderRadius: 6, border: 'none',
+                    background: inCart ? 'var(--green)' : 'rgba(255,255,255,0.25)',
+                    color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backdropFilter: 'blur(8px)', flexShrink: 0,
+                    boxShadow: inCart ? '0 2px 8px rgba(5,150,105,0.4)' : '0 2px 8px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {inCart ? '\u2713' : '+'}
+                </button>
+              )}
             </div>
 
             {/* Bottom content */}
@@ -124,7 +126,7 @@ export default function TrackCardGrid({ tracks, onView, showCart = false }: Trac
               {/* Title */}
               <div style={{
                 fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 700, fontSize: 16, color: '#fff',
+                fontWeight: 700, fontSize: 15, color: '#fff',
                 textShadow: '0 1px 4px rgba(0,0,0,0.4)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 lineHeight: 1.2,
@@ -133,14 +135,14 @@ export default function TrackCardGrid({ tracks, onView, showCart = false }: Trac
               </div>
               {/* Artist */}
               <div style={{
-                fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: 500,
+                fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 500,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 marginTop: 2,
               }}>
                 {track.artist}
               </div>
               {/* Genre + mood tags */}
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
                 <span style={{
                   fontSize: 9, padding: '2px 6px', borderRadius: 4,
                   background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.9)', fontWeight: 500,
@@ -155,13 +157,21 @@ export default function TrackCardGrid({ tracks, onView, showCart = false }: Trac
                     {track.mood}
                   </span>
                 )}
+                {track.publisher && (
+                  <span style={{
+                    fontSize: 9, padding: '2px 6px', borderRadius: 4,
+                    background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.9)', fontWeight: 500,
+                  }}>
+                    {track.publisher}
+                  </span>
+                )}
               </div>
               {/* Play button */}
               <button
                 onClick={(e) => handlePlay(e, track)}
                 disabled={!!isLoading}
                 style={{
-                  marginTop: 8, width: '100%', padding: '7px 0', borderRadius: 8, border: 'none',
+                  marginTop: 6, width: '100%', padding: '6px 0', borderRadius: 8, border: 'none',
                   background: isPlaying ? 'var(--green)' : 'rgba(255,255,255,0.2)',
                   color: '#fff', fontSize: 11, fontWeight: 600,
                   cursor: isLoading ? 'wait' : 'pointer',

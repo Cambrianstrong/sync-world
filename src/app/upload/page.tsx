@@ -231,18 +231,24 @@ export default function UploadPage() {
           continue;
         }
 
-        const { error: fileError } = await supabase.from('track_files').insert({
-          track_id: track.id,
-          version_type: versionType,
-          file_name: file.name,
-          file_size: file.size,
-          storage_path: storagePath,
-          format: ext as 'WAV' | 'AIFF' | 'MP3',
+        // Register file via server API (bypasses RLS)
+        const regRes = await fetch('/api/tracks/register-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            track_id: track.id,
+            version_type: versionType,
+            file_name: file.name,
+            file_size: file.size,
+            storage_path: storagePath,
+            format: ext as 'WAV' | 'AIFF' | 'MP3',
+          }),
         });
 
-        if (fileError) {
-          notify(`File record error for "${file.name}": ${fileError.message}`, 'error');
-          console.error('track_files insert error:', fileError);
+        if (!regRes.ok) {
+          const regErr = await regRes.json().catch(() => ({}));
+          notify(`File record error for "${file.name}": ${regErr.error || 'Unknown error'}`, 'error');
+          console.error('track_files register error:', regErr);
         }
       }
 
@@ -443,8 +449,8 @@ export default function UploadPage() {
                 <input value={sharedMeta.artist} onChange={e => setSharedMeta(p => ({ ...p, artist: e.target.value }))} required />
               </div>
               <div style={formGroupStyle}>
-                <label style={labelStyle}>Writer(s)</label>
-                <input value={sharedMeta.writers} onChange={e => setSharedMeta(p => ({ ...p, writers: e.target.value }))} />
+                <label style={labelStyle}>Writer(s) *</label>
+                <input value={sharedMeta.writers} onChange={e => setSharedMeta(p => ({ ...p, writers: e.target.value }))} placeholder="At least one writer required" />
               </div>
               <div style={formGroupStyle}>
                 <label style={labelStyle}>Producer(s)</label>
@@ -464,11 +470,8 @@ export default function UploadPage() {
                 </select>
               </div>
               <div style={formGroupStyle}>
-                <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 2 — first genre = category folder)</span></label>
+                <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 1 — first genre = category folder)</span></label>
                 <GenreTagInput value={sharedMeta.genre} onChange={v => setSharedMeta(p => ({ ...p, genre: v }))} placeholder="First genre = category folder, then add more..." />
-                {genreCount(sharedMeta.genre) === 1 && (
-                  <span style={{ fontSize: 11, color: 'var(--orange)' }}>Add at least one more genre</span>
-                )}
                 {genreCount(sharedMeta.genre) >= 1 && !primaryGenreIsCategory(sharedMeta.genre) && (
                   <span style={{ fontSize: 11, color: 'var(--red)' }}>
                     First genre &ldquo;{sharedMeta.genre.split(',')[0].trim()}&rdquo; is not an existing category. Songs will go under the first matching category.
@@ -511,12 +514,12 @@ export default function UploadPage() {
 
             <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
               <button onClick={() => setStep('upload')} style={btnSecStyle}>Back</button>
-              <button onClick={applySharedMeta} disabled={!sharedMeta.artist || !sharedMeta.publisher || genreCount(sharedMeta.genre) < 2} style={{ ...btnStyle, opacity: (!sharedMeta.artist || !sharedMeta.publisher || genreCount(sharedMeta.genre) < 2) ? 0.5 : 1 }}>
+              <button onClick={applySharedMeta} disabled={!sharedMeta.artist || !sharedMeta.publisher || genreCount(sharedMeta.genre) < 1 || !sharedMeta.writers} style={{ ...btnStyle, opacity: (!sharedMeta.artist || !sharedMeta.publisher || genreCount(sharedMeta.genre) < 1 || !sharedMeta.writers) ? 0.5 : 1 }}>
                 Next: Review Songs
               </button>
-              {genreCount(sharedMeta.genre) < 2 && (
+              {genreCount(sharedMeta.genre) < 1 && (
                 <span style={{ fontSize: 12, color: 'var(--orange)', marginLeft: 8, alignSelf: 'center' }}>
-                  Please select at least 2 genres
+                  Please select at least 1 genre
                 </span>
               )}
               {!sharedMeta.publisher && (
@@ -618,11 +621,11 @@ export default function UploadPage() {
                         </select>
                       </div>
                       <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
-                        <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 2 required)</span></label>
+                        <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 1 required)</span></label>
                         <GenreTagInput value={song.genre} onChange={v => updateSong(i, { genre: v })} />
-                        {genreCount(song.genre) < 2 && (
+                        {genreCount(song.genre) < 1 && (
                           <span style={{ fontSize: 11, color: 'var(--orange)' }}>
-                            {genreCount(song.genre) === 0 ? 'Select at least 2 genres' : 'Add at least one more genre'}
+                            {genreCount(song.genre) === 0 ? 'Select at least 1 genre' : 'Select at least 1 genre'}
                           </span>
                         )}
                       </div>
@@ -705,7 +708,7 @@ export default function UploadPage() {
             <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
               <button onClick={() => setStep('shared')} style={btnSecStyle}>Back</button>
               {(() => {
-                const hasGenreIssue = songGroups.some(s => genreCount(s.genre) < 2);
+                const hasGenreIssue = songGroups.some(s => genreCount(s.genre) < 1 || !s.writers);
                 const disabled = submitting || songGroups.length === 0 || hasGenreIssue;
                 return (
                   <>
@@ -723,7 +726,7 @@ export default function UploadPage() {
                     </button>
                     {hasGenreIssue && (
                       <span style={{ fontSize: 12, color: 'var(--orange)', alignSelf: 'center' }}>
-                        Each song needs at least 2 genres
+                        Each song needs at least 1 genre and a writer
                       </span>
                     )}
                   </>
@@ -828,11 +831,11 @@ export default function UploadPage() {
                   <input value={editForm.producers || ''} onChange={e => setEditForm(p => ({ ...p, producers: e.target.value }))} />
                 </div>
                 <div style={{ ...formGroupStyle, gridColumn: 'span 2' }}>
-                  <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 2 required)</span></label>
+                  <label style={labelStyle}>Genre(s) * <span style={{ textTransform: 'none', fontWeight: 400 }}>(min. 1 required)</span></label>
                   <GenreTagInput value={editForm.genre || ''} onChange={v => setEditForm(p => ({ ...p, genre: v }))} />
-                  {genreCount(editForm.genre || '') < 2 && (
+                  {genreCount(editForm.genre || '') < 1 && (
                     <span style={{ fontSize: 11, color: 'var(--orange)' }}>
-                      {genreCount(editForm.genre || '') === 0 ? 'Select at least 2 genres' : 'Add at least one more genre'}
+                      {genreCount(editForm.genre || '') === 0 ? 'Select at least 1 genre' : 'Select at least 1 genre'}
                     </span>
                   )}
                 </div>
@@ -898,10 +901,10 @@ export default function UploadPage() {
               <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
                 <button
                   onClick={saveTrackEdit}
-                  disabled={saving || !editForm.title || !editForm.artist || genreCount(editForm.genre || '') < 2}
+                  disabled={saving || !editForm.title || !editForm.artist || genreCount(editForm.genre || '') < 1}
                   style={{
                     ...btnStyle,
-                    opacity: (saving || !editForm.title || !editForm.artist || genreCount(editForm.genre || '') < 2) ? 0.5 : 1,
+                    opacity: (saving || !editForm.title || !editForm.artist || genreCount(editForm.genre || '') < 1) ? 0.5 : 1,
                   }}
                 >
                   {saving ? 'Saving...' : 'Save Changes'}

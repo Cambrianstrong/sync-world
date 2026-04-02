@@ -7,13 +7,13 @@ import MiniPlayer from '@/components/audio/MiniPlayer';
 import SwipeBackHandler from '@/components/SwipeBackHandler';
 
 export const metadata: Metadata = {
-  title: 'Sync World',
+  title: 'RFLCT',
   description: 'Music Sync Licensing Portal',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Sync World',
+    title: 'RFLCT',
     startupImage: '/apple-touch-icon.png',
   },
   icons: {

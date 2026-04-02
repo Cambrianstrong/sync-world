@@ -294,6 +294,7 @@ export default function TrackDetail({ track, open, onClose, onInterest, showInte
             ['Mood', track.mood || '\u2014'],
             ['Theme', track.theme || '\u2014'],
             ['Writers', track.writers || '\u2014'],
+            ['Publisher', track.publisher || '\u2014'],
             ['Label', track.label || 'Independent'],
             ['Splits', track.splits || 'TBD'],
             ['Seasonal', track.seasonal || '\u2014'],
@@ -356,7 +357,7 @@ export default function TrackDetail({ track, open, onClose, onInterest, showInte
           }}>
             <h3 style={{ fontSize: 15, marginBottom: 6 }}>Interested in this track?</h3>
             <p style={{ fontSize: 13, color: 'var(--dim)', marginBottom: 14 }}>
-              Let the Sync World team know your interest level.
+              Let the RFLCT team know your interest level.
             </p>
             <div className="interest-buttons">
               <button onClick={() => onInterest(track.id, 'liked')} style={{

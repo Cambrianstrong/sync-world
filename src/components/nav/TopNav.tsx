@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import type { UserRole } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
 import useTheme from '@/hooks/useTheme';
-import { useCart } from '@/contexts/CartContext';
 import { useAudio } from '@/contexts/AudioContext';
 import NotificationBell from '@/components/nav/NotificationBell';
 
@@ -19,7 +18,6 @@ export default function TopNav({ role, userName }: TopNavProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { count: cartCount } = useCart();
   const { track: nowPlaying, playing } = useAudio();
 
   const tabs = [
@@ -73,8 +71,10 @@ export default function TopNav({ role, userName }: TopNavProps) {
 
       {/* Center: logo + now playing indicator */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-        <Link href="/browse" className="nav-logo">
-          Sync <span>World</span>
+        <Link href="/browse" className="nav-logo" onClick={() => {
+          window.dispatchEvent(new Event('browse-reset'));
+        }}>
+          RFLCT
         </Link>
         {nowPlaying && playing && (
           <span className="nav-equalizer" title={`Playing: ${nowPlaying.title}`}>
@@ -83,35 +83,16 @@ export default function TopNav({ role, userName }: TopNavProps) {
         )}
       </div>
 
-      {/* Right: cart + theme toggle + user + sign out */}
+      {/* Right: theme toggle + user */}
       <div className="nav-right">
-        <Link href="/downloads" className="nav-cart-btn" aria-label="Cart" style={{
-          position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 8,
-          background: 'none', color: 'var(--dim)', fontSize: 11, fontWeight: 600, lineHeight: 1,
-          textDecoration: 'none', fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.5,
-          textTransform: 'uppercase' as const,
-        }}>
-          Cart
-          {cartCount > 0 && (
-            <span style={{
-              position: 'absolute', top: -6, right: -6, width: 18, height: 18,
-              borderRadius: '50%', background: 'var(--accent)', color: '#fff',
-              fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              {cartCount}
-            </span>
-          )}
-        </Link>
         {role && <NotificationBell />}
         <button
           onClick={toggleTheme}
           aria-label="Toggle dark mode"
           style={{
-            background: 'none', border: '1px solid var(--border)', borderRadius: 8,
+            background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
             padding: '5px 8px', cursor: 'pointer', lineHeight: 1,
-            color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#e0e0e8', display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 34, height: 34,
           }}
         >
@@ -130,11 +111,7 @@ export default function TopNav({ role, userName }: TopNavProps) {
             {userName}
           </Link>
         )}
-        {role ? (
-          <button onClick={handleSignOut} className="nav-signout">
-            Sign Out
-          </button>
-        ) : (
+        {!role && (
           <Link href="/login" className="nav-signin">
             Sign In
           </Link>

@@ -171,7 +171,7 @@ function SignupContent() {
           <p style={{ color: 'var(--dim)', fontSize: 14, lineHeight: 1.5 }}>
             This invite link is no longer valid. It may have expired or already been used.
             <br /><br />
-            Contact the Sync World team for a new invite.
+            Contact the RFLCT team for a new invite.
           </p>
         </div>
       </div>

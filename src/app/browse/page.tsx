@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Track } from '@/lib/types';
 import TopNav from '@/components/nav/TopNav';
-import TrackFilters from '@/components/tracks/TrackFilters';
 import TrackTable from '@/components/tracks/TrackTable';
 import TrackCardGrid from '@/components/tracks/TrackCardGrid';
 import TrackDetail from '@/components/tracks/TrackDetail';
@@ -65,11 +64,23 @@ export default function BrowsePage() {
   const { notif, notify } = useNotification();
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadTracks();
     loadCategories();
+  }, []);
+
+  // Listen for logo click to reset all filters
+  useEffect(() => {
+    function handleReset() {
+      setSearch(''); setFilterStatus(''); setFilterGenre(''); setFilterEnergy('');
+      setFilterVocal(''); setFilterWriterProducer(''); setFilterPublisher('');
+      setActiveSection(null); setShowFilters(false); setSelectedTrack(null);
+    }
+    window.addEventListener('browse-reset', handleReset);
+    return () => window.removeEventListener('browse-reset', handleReset);
   }, []);
 
   async function loadCategories() {
@@ -221,6 +232,7 @@ export default function BrowsePage() {
   const { pullDistance, refreshing } = usePullToRefresh({ onRefresh: handleRefresh });
 
   const isViewer = !profile || profile.role === 'viewer';
+  const canCart = profile?.role === 'viewer' || profile?.role === 'admin';
 
   // Show loading while checking auth — useAuth will redirect to /login if not authenticated
   if (authLoading || !profile) {
@@ -247,16 +259,130 @@ export default function BrowsePage() {
           </p>
         </div>
 
-        {/* Search bar */}
-        <div style={{ marginBottom: 28 }}>
-          <input
-            ref={searchRef}
-            value={search}
-            onChange={e => { setSearch(e.target.value); setSelectedIndex(-1); }}
-            placeholder="Search by title, artist, genre, mood, theme... (Ctrl+K)"
-            style={{ width: '100%', padding: '14px 20px', borderRadius: 14, fontSize: 15 }}
-          />
+        {/* Search / Filter toggle button */}
+        <div style={{ marginBottom: showFilters ? 0 : 28 }}>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            style={{
+              width: '100%', padding: '14px 20px', borderRadius: 14, fontSize: 15,
+              border: '1px solid var(--border)', background: 'var(--surface-solid)',
+              color: search ? 'var(--text)' : 'var(--dim)', textAlign: 'left',
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, flexShrink: 0 }}>
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              {search || 'Search & filter tracks...'}
+            </span>
+            <span style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              {(search || filterStatus || filterEnergy || filterVocal || filterWriterProducer || filterPublisher) && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10,
+                  background: 'var(--accent)', color: '#fff',
+                }}>
+                  {[search, filterStatus, filterEnergy, filterVocal, filterWriterProducer, filterPublisher].filter(Boolean).length}
+                </span>
+              )}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s', transform: showFilters ? 'rotate(180deg)' : 'rotate(0)' }}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </span>
+          </button>
         </div>
+
+        {/* Expandable search & filter panel */}
+        {showFilters && (
+          <div style={{
+            background: 'var(--surface-solid)', border: '1px solid var(--border)',
+            borderRadius: 14, padding: 16, marginBottom: 24,
+            animation: 'slideDown 0.2s ease',
+          }}>
+            <input
+              ref={searchRef}
+              value={search}
+              onChange={e => { setSearch(e.target.value); setSelectedIndex(-1); }}
+              placeholder="Search by title, artist, genre, mood, theme..."
+              autoFocus
+              style={{
+                width: '100%', padding: '12px 16px', borderRadius: 10, fontSize: 14,
+                border: '1px solid var(--border)', background: 'var(--bg)',
+                color: 'var(--text)', fontFamily: "'DM Sans', sans-serif",
+                marginBottom: 12,
+              }}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+              {[
+                { value: filterStatus, onChange: setFilterStatus, options: ['Released', 'Unreleased (Complete)', 'Demo (WIP)'], placeholder: 'All Statuses' },
+                { value: filterEnergy, onChange: setFilterEnergy, options: ['Low', 'Medium', 'High'], placeholder: 'All Energy' },
+                { value: filterVocal, onChange: setFilterVocal, options: ['Vocal', 'Instrumental', 'Both'], placeholder: 'All Vocals' },
+              ].map((f, i) => (
+                <select
+                  key={i}
+                  value={f.value}
+                  onChange={e => f.onChange(e.target.value)}
+                  style={{
+                    padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)',
+                    background: 'var(--bg)', color: 'var(--text)',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  }}
+                >
+                  <option value="">{f.placeholder}</option>
+                  {f.options.map(o => <option key={o}>{o}</option>)}
+                </select>
+              ))}
+              {writerProducerOptions.length > 0 && (
+                <select
+                  value={filterWriterProducer}
+                  onChange={e => setFilterWriterProducer(e.target.value)}
+                  style={{
+                    padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)',
+                    background: 'var(--bg)', color: 'var(--text)',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  }}
+                >
+                  <option value="">All Writers/Producers</option>
+                  {writerProducerOptions.map(wp => <option key={wp}>{wp}</option>)}
+                </select>
+              )}
+              {publisherOptions.length > 0 && (
+                <select
+                  value={filterPublisher}
+                  onChange={e => setFilterPublisher(e.target.value)}
+                  style={{
+                    padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)',
+                    background: 'var(--bg)', color: 'var(--text)',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  }}
+                >
+                  <option value="">All Publishers</option>
+                  {publisherOptions.map(p => <option key={p}>{p}</option>)}
+                </select>
+              )}
+            </div>
+            {/* Clear all button */}
+            {(search || filterStatus || filterEnergy || filterVocal || filterWriterProducer || filterPublisher) && (
+              <button
+                onClick={() => {
+                  setSearch(''); setFilterStatus(''); setFilterEnergy('');
+                  setFilterVocal(''); setFilterWriterProducer(''); setFilterPublisher('');
+                }}
+                style={{
+                  marginTop: 12, padding: '8px 16px', borderRadius: 8, border: 'none',
+                  background: 'var(--red)', color: '#fff', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                Clear All Filters
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Songs & Instrumentals sections */}
         {!filterGenre && !search && (
@@ -375,7 +501,7 @@ export default function BrowsePage() {
         {(filterGenre || search) && (
           <div style={{ marginBottom: 20 }}>
             {filterGenre && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
                 <button
                   onClick={() => { setFilterGenre(''); setActiveSection(null); }}
                   style={{
@@ -398,24 +524,20 @@ export default function BrowsePage() {
               </div>
             )}
 
-            {/* Filters */}
-            <TrackFilters
-              search={search} onSearchChange={setSearch}
-              status={filterStatus} onStatusChange={setFilterStatus}
-              genre={filterGenre} onGenreChange={setFilterGenre}
-              energy={filterEnergy} onEnergyChange={setFilterEnergy}
-              vocal={filterVocal} onVocalChange={setFilterVocal}
-              writerProducer={filterWriterProducer} onWriterProducerChange={setFilterWriterProducer}
-              writerProducerOptions={writerProducerOptions}
-              publisher={filterPublisher} onPublisherChange={setFilterPublisher}
-              publisherOptions={publisherOptions}
-            />
+            {/* Search results header */}
+            {!filterGenre && search && (
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ color: 'var(--dim)', fontSize: 14 }}>
+                  {filtered.length} result{filtered.length !== 1 ? 's' : ''} for &ldquo;{search}&rdquo;
+                </span>
+              </div>
+            )}
 
             {/* Track Cards */}
             <TrackCardGrid
               tracks={filtered}
               onView={setSelectedTrack}
-              showCart={isViewer}
+              showCart={canCart}
             />
           </div>
         )}
@@ -432,7 +554,7 @@ export default function BrowsePage() {
         <Notification {...notif} />
 
         {/* Cart button for viewers */}
-        {isViewer && <CartButton />}
+        {canCart && <CartButton />}
 
         {/* Keyboard shortcuts help button */}
         <button

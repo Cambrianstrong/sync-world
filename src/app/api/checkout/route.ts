@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   const userName = profile?.full_name || user.email?.split('@')[0] || 'User';
-  const userEmail = user.email!;
+  const userEmail = body.sendToEmail || user.email!;
 
   // Generate signed URLs for each track
   const trackResults: {
@@ -71,7 +71,9 @@ export async function POST(request: NextRequest) {
       for (const file of files) {
         const { data: urlData } = await supabase.storage
           .from('tracks')
-          .createSignedUrl(file.storage_path, 86400); // 24 hour links
+          .createSignedUrl(file.storage_path, 86400, {
+            download: file.file_name, // Forces browser to download instead of stream
+          });
 
         if (urlData?.signedUrl) {
           trackFiles.push({
@@ -118,18 +120,21 @@ export async function POST(request: NextRequest) {
   let emailSent = false;
   const resendKey = process.env.RESEND_API_KEY;
 
-  if (resendKey) {
+  const skipEmail = body.skipEmail === true;
+
+  if (resendKey && !skipEmail && userEmail) {
     try {
       const resend = new Resend(resendKey);
-      await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'Sync World <noreply@resend.dev>',
+      const result = await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL || 'RFLCT <onboarding@resend.dev>',
         to: userEmail,
-        subject: `Your Sync World Selection - ${tracks.length} Track${tracks.length !== 1 ? 's' : ''}`,
+        subject: `Your RFLCT Selection - ${tracks.length} Track${tracks.length !== 1 ? 's' : ''}`,
         html: emailHtml,
       });
+      console.log('[Checkout] Resend result:', JSON.stringify(result));
       emailSent = true;
-    } catch (err) {
-      console.error('[Checkout] Email send error:', err);
+    } catch (err: any) {
+      console.error('[Checkout] Email send error:', err?.message || err);
     }
   } else {
     console.warn('[Checkout] No RESEND_API_KEY set, skipping email');
@@ -198,7 +203,7 @@ function buildEmailHtml(
         <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
           <!-- Header -->
           <div style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);padding:32px;text-align:center;">
-            <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px;">Sync World</div>
+            <div style="font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.5px;">RFLCT</div>
             <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">Music Sync Licensing Portal</div>
           </div>
 
@@ -220,8 +225,8 @@ function buildEmailHtml(
           <!-- Footer -->
           <div style="padding:24px 32px;background:#fafafa;border-top:1px solid #eee;text-align:center;">
             <div style="font-size:11px;color:#999;line-height:1.5;">
-              This email was sent from Sync World. Download links expire in 24 hours.<br>
-              For questions, contact your Sync World admin.
+              This email was sent from RFLCT. Download links expire in 24 hours.<br>
+              For questions, contact your RFLCT admin.
             </div>
           </div>
         </div>

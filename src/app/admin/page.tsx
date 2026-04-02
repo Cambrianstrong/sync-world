@@ -29,6 +29,7 @@ export default function AdminPage() {
   const [newCatColor, setNewCatColor] = useState('');
   const [showCatManager, setShowCatManager] = useState(false);
   const [trackSearch, setTrackSearch] = useState('');
+  const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
   const { notif, notify } = useNotification();
   const { track: currentTrack, playing, loading: audioLoading, play, pause } = useAudio();
 
@@ -181,20 +182,65 @@ export default function AdminPage() {
   async function deleteTrack(trackId: string) {
     const track = tracks.find(t => t.id === trackId);
     if (!track || !confirm(`Delete "${track.title}" permanently? This cannot be undone.`)) return;
+    await doDelete([trackId]);
+  }
 
-    const supabase = createClient();
+  async function doDelete(trackIds: string[]) {
+    try {
+      const res = await fetch('/api/tracks/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackIds }),
+      });
+      const json = await res.json();
 
-    // Delete related track_files first
-    await supabase.from('track_files').delete().eq('track_id', trackId);
-    // Delete the track
-    const { error } = await supabase.from('tracks').delete().eq('id', trackId);
+      if (!res.ok) {
+        notify(`Error deleting: ${json.error}`, 'error');
+      } else {
+        notify(`${json.deleted} track${json.deleted !== 1 ? 's' : ''} deleted`, 'info');
+      }
+    } catch (err) {
+      notify('Delete failed. Please try again.', 'error');
+    }
+    setEditTrack(null);
+    setSelectedTracks(new Set());
+    loadData();
+  }
 
-    if (error) {
-      notify(`Error deleting: ${error.message}`, 'error');
+  async function deleteSelected() {
+    if (selectedTracks.size === 0) return;
+    const names = tracks.filter(t => selectedTracks.has(t.id)).map(t => t.title);
+    if (!confirm(`Delete ${names.length} track${names.length !== 1 ? 's' : ''} permanently?\n\n${names.join(', ')}\n\nThis cannot be undone.`)) return;
+    await doDelete([...selectedTracks]);
+  }
+
+  async function repairTracks() {
+    notify('Scanning for broken tracks...', 'success');
+    const res = await fetch('/api/tracks/repair', { method: 'POST' });
+    const json = await res.json();
+    if (json.totalRepaired > 0) {
+      notify(`Repaired ${json.totalRepaired} track${json.totalRepaired !== 1 ? 's' : ''}! They should play now.`, 'success');
+    } else if (json.repaired === 0 || json.totalRepaired === 0) {
+      notify('All tracks look good — nothing to repair.', 'success');
     } else {
-      notify(`"${track.title}" deleted`, 'info');
-      setEditTrack(null);
-      loadData();
+      notify(`Repair error: ${json.error || 'Unknown'}`, 'error');
+    }
+  }
+
+  function toggleSelect(trackId: string) {
+    setSelectedTracks(prev => {
+      const next = new Set(prev);
+      if (next.has(trackId)) next.delete(trackId);
+      else next.add(trackId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedTracks.size === filteredTracks.length) {
+      setSelectedTracks(new Set());
+    } else {
+      setSelectedTracks(new Set(filteredTracks.map(t => t.id)));
     }
   }
 
@@ -445,20 +491,44 @@ export default function AdminPage() {
                   ({filteredTracks.length}{trackSearch ? ` of ${tracks.length}` : ''})
                 </span>
               </h3>
-              <input
-                value={trackSearch}
-                onChange={e => setTrackSearch(e.target.value)}
-                placeholder="Search tracks..."
-                style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, minWidth: 200, maxWidth: 300, flex: 1 }}
-              />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button onClick={repairTracks} style={{
+                  padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                  background: 'transparent', color: 'var(--dim)', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  whiteSpace: 'nowrap',
+                }}>
+                  Repair Tracks
+                </button>
+                {selectedTracks.size > 0 && (
+                  <button onClick={deleteSelected} style={{
+                    padding: '8px 14px', borderRadius: 8, border: '1px solid var(--red)',
+                    background: 'transparent', color: 'var(--red)', fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    whiteSpace: 'nowrap',
+                  }}>
+                    Delete {selectedTracks.size} selected
+                  </button>
+                )}
+                <input
+                  value={trackSearch}
+                  onChange={e => setTrackSearch(e.target.value)}
+                  placeholder="Search tracks..."
+                  style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, minWidth: 160, maxWidth: 300, flex: 1 }}
+                />
+              </div>
             </div>
-            <div className="table-scroll">
+            {/* Desktop table */}
+            <div className="table-scroll pipeline-desktop">
             <table style={{
               width: '100%', borderCollapse: 'separate', borderSpacing: 0,
               background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
             }}>
               <thead>
                 <tr>
+                  <th style={{ ...thStyle, width: 36 }}>
+                    <input type="checkbox" checked={selectedTracks.size === filteredTracks.length && filteredTracks.length > 0} onChange={toggleSelectAll} />
+                  </th>
                   <th style={{ ...thStyle, width: 50 }}>Play</th>
                   <th style={thStyle}>Title / Artist</th>
                   <th style={thStyle}>Genre</th>
@@ -472,12 +542,15 @@ export default function AdminPage() {
               <tbody>
                 {filteredTracks.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', color: 'var(--dim)', padding: 40 }}>
+                    <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', color: 'var(--dim)', padding: 40 }}>
                       {trackSearch ? 'No tracks match your search' : 'No tracks in catalog'}
                     </td>
                   </tr>
                 ) : filteredTracks.map(t => (
-                  <tr key={t.id}>
+                  <tr key={t.id} style={{ background: selectedTracks.has(t.id) ? 'rgba(99,102,241,0.06)' : undefined }}>
+                    <td style={tdStyle}>
+                      <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} />
+                    </td>
                     <td style={tdStyle}>
                       <button
                         onClick={() => handlePlay(t)}
@@ -555,6 +628,93 @@ export default function AdminPage() {
                 ))}
               </tbody>
             </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="pipeline-mobile">
+              {filteredTracks.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--dim)', fontSize: 13, padding: 40, background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                  {trackSearch ? 'No tracks match your search' : 'No tracks in catalog'}
+                </div>
+              ) : filteredTracks.map(t => (
+                <div key={t.id} style={{
+                  background: selectedTracks.has(t.id) ? 'rgba(99,102,241,0.06)' : 'var(--surface)',
+                  borderRadius: 12, border: selectedTracks.has(t.id) ? '1px solid rgba(99,102,241,0.3)' : '1px solid var(--border)',
+                  padding: 14, marginBottom: 10,
+                }}>
+                  {/* Top: checkbox + play + title + badges */}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
+                    <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ marginTop: 10, flexShrink: 0 }} />
+                    <button
+                      onClick={() => handlePlay(t)}
+                      disabled={audioLoading && currentTrack?.id === t.id}
+                      style={{
+                        width: 36, height: 36, borderRadius: '50%', border: 'none', flexShrink: 0,
+                        background: currentTrack?.id === t.id && playing ? 'var(--green)' : 'var(--accent)',
+                        color: '#fff', fontSize: 12, cursor: (audioLoading && currentTrack?.id === t.id) ? 'wait' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {(audioLoading && currentTrack?.id === t.id) ? <LoadingIcon size={13} color="#fff" /> : (currentTrack?.id === t.id && playing) ? <PauseIcon size={13} color="#fff" /> : <PlayIcon size={13} color="#fff" />}
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
+                      <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <Badge variant={statusBadgeVariant(t.status)}>
+                        {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
+                      </Badge>
+                      {t.sync_status !== 'none' && (
+                        <Badge variant={syncBadgeVariant(t.sync_status)}>
+                          {t.sync_status.charAt(0).toUpperCase() + t.sync_status.slice(1)}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  {/* Meta row */}
+                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--dim)', marginBottom: 10, flexWrap: 'wrap' }}>
+                    <span>{t.genre || 'No genre'}</span>
+                    <span style={{
+                      fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
+                      color: t.download_count > 0 ? 'var(--orange)' : 'var(--dim)',
+                    }}>
+                      {t.download_count} downloads
+                    </span>
+                  </div>
+                  {/* Actions row */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                      value={t.sync_status}
+                      onChange={e => updateSyncStatus(t.id, e.target.value)}
+                      style={{
+                        padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                        background: 'var(--bg)', color: 'var(--text)', fontSize: 12,
+                        fontFamily: "'DM Sans', sans-serif", flex: 1,
+                      }}
+                    >
+                      <option value="none">Sync: None</option>
+                      <option value="liked">Sync: Liked</option>
+                      <option value="chosen">Sync: Chosen</option>
+                      <option value="placed">Sync: Placed</option>
+                    </select>
+                    <button onClick={() => openEdit(t)} style={{
+                      padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
+                      background: 'rgba(0,0,0,0.02)', color: 'var(--text)', fontSize: 12,
+                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                      Edit
+                    </button>
+                    <button onClick={() => deleteTrack(t.id)} style={{
+                      padding: '6px 14px', borderRadius: 6, border: '1px solid var(--red)',
+                      background: 'transparent', color: 'var(--red)', fontSize: 12,
+                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
