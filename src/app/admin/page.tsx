@@ -687,9 +687,9 @@ export default function AdminPage() {
                   borderRadius: 12, border: selectedTracks.has(t.id) ? '1px solid rgba(99,102,241,0.3)' : '1px solid var(--border)',
                   padding: 14, marginBottom: 10,
                 }}>
-                  {/* Top: checkbox + play + title + badges */}
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
-                    <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ marginTop: 10, flexShrink: 0 }} />
+                  {/* Row 1: checkbox + play + title/artist */}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+                    <input type="checkbox" checked={selectedTracks.has(t.id)} onChange={() => toggleSelect(t.id)} style={{ flexShrink: 0 }} />
                     <button
                       onClick={() => handlePlay(t)}
                       disabled={audioLoading && currentTrack?.id === t.id}
@@ -702,33 +702,31 @@ export default function AdminPage() {
                     >
                       {(audioLoading && currentTrack?.id === t.id) ? <LoadingIcon size={13} color="#fff" /> : (currentTrack?.id === t.id && playing) ? <PauseIcon size={13} color="#fff" /> : <PlayIcon size={13} color="#fff" />}
                     </button>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
                       <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      <Badge variant={statusBadgeVariant(t.status)}>
-                        {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
-                      </Badge>
-                      {t.sync_status !== 'none' && (
-                        <Badge variant={syncBadgeVariant(t.sync_status)}>
-                          {t.sync_status.charAt(0).toUpperCase() + t.sync_status.slice(1)}
-                        </Badge>
-                      )}
-                    </div>
                   </div>
-                  {/* Meta row */}
-                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--dim)', marginBottom: 10, flexWrap: 'wrap' }}>
-                    <span>{t.genre || 'No genre'}</span>
+                  {/* Row 2: badges + meta */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+                    <Badge variant={statusBadgeVariant(t.status)}>
+                      {t.status === 'Unreleased (Complete)' ? 'Unreleased' : t.status}
+                    </Badge>
+                    {t.sync_status !== 'none' && (
+                      <Badge variant={syncBadgeVariant(t.sync_status)}>
+                        {t.sync_status.charAt(0).toUpperCase() + t.sync_status.slice(1)}
+                      </Badge>
+                    )}
+                    <span style={{ fontSize: 12, color: 'var(--dim)' }}>{t.genre || 'No genre'}</span>
                     <span style={{
-                      fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
+                      fontSize: 12, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
                       color: t.download_count > 0 ? 'var(--orange)' : 'var(--dim)',
                     }}>
-                      {t.download_count} downloads
+                      {t.download_count} DLs
                     </span>
                   </div>
-                  {/* Actions row */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Row 3: actions */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <select
                       value={t.sync_status}
                       onChange={e => updateSyncStatus(t.id, e.target.value)}
