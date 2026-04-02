@@ -416,7 +416,7 @@ export default function UploadPage() {
               </div>
             )}
 
-            <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+            <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <button
                 onClick={proceedToShared}
                 disabled={files.length === 0}
@@ -512,7 +512,7 @@ export default function UploadPage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+            <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <button onClick={() => setStep('upload')} style={btnSecStyle}>Back</button>
               <button onClick={applySharedMeta} disabled={!sharedMeta.artist || !sharedMeta.publisher || genreCount(sharedMeta.genre) < 1 || !sharedMeta.writers} style={{ ...btnStyle, opacity: (!sharedMeta.artist || !sharedMeta.publisher || genreCount(sharedMeta.genre) < 1 || !sharedMeta.writers) ? 0.5 : 1 }}>
                 Next: Review Songs
@@ -706,7 +706,7 @@ export default function UploadPage() {
               </div>
             )}
 
-            <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+            <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <button onClick={() => setStep('shared')} style={btnSecStyle}>Back</button>
               {(() => {
                 const hasGenreIssue = songGroups.some(s => genreCount(s.genre) < 1 || !s.writers);
@@ -743,6 +743,7 @@ export default function UploadPage() {
             <h2 style={{ fontSize: 18, marginBottom: 16 }}>
               {profile?.role === 'admin' ? 'All Tracks' : 'My Submissions'}
             </h2>
+            <div className="table-scroll">
             <table style={{
               width: '100%', borderCollapse: 'separate', borderSpacing: 0,
               background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)',
@@ -801,6 +802,7 @@ export default function UploadPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
@@ -899,7 +901,7 @@ export default function UploadPage() {
                   <textarea value={editForm.notes || ''} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
                 </div>
               </div>
-              <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+              <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <button
                   onClick={saveTrackEdit}
                   disabled={saving || !editForm.title || !editForm.artist || genreCount(editForm.genre || '') < 1}

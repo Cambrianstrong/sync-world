@@ -322,7 +322,7 @@ export default function AdminPage() {
         </div>
 
         {/* Quick links */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
           <Link href="/admin/submissions" style={{
             padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border)',
             background: 'var(--surface)', color: 'var(--text)', textDecoration: 'none',
@@ -401,7 +401,7 @@ export default function AdminPage() {
 
               {/* Add new category */}
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 160 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <label style={{ fontSize: 11, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: 0.3, display: 'block', marginBottom: 4 }}>
                     New Category Name
                   </label>
@@ -523,7 +523,7 @@ export default function AdminPage() {
                   value={trackSearch}
                   onChange={e => setTrackSearch(e.target.value)}
                   placeholder="Search tracks..."
-                  style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, minWidth: 160, maxWidth: 300, flex: 1 }}
+                  style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, minWidth: 0, maxWidth: 300, flex: 1 }}
                 />
               </div>
             </div>
