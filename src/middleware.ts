@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Public routes that don't require auth
-  const publicPaths = ['/login', '/signup', '/auth/callback', '/api/'];
+  const publicPaths = ['/login', '/signup', '/auth/callback', '/api/', '/privacy', '/support'];
   const isPublic = publicPaths.some(p => path.startsWith(p));
 
   // Redirect unauthenticated users to login (except public pages)
