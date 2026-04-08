@@ -91,9 +91,12 @@ export default function BrowsePage() {
 
   async function loadTracks() {
     const supabase = createClient();
+    // Only show tracks that have finished AI analysis. Untagged tracks are
+    // still in the analysis queue; they'll appear once the queue drains.
     const { data } = await supabase
       .from('tracks')
       .select('*')
+      .not('ai_analyzed_at', 'is', null)
       .order('date_added', { ascending: false });
     if (data) setTracks(data);
   }

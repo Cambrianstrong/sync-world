@@ -268,7 +268,23 @@ export default function UploadPage() {
       }
     }
     if (totalSuccess > 0) {
-      notify(`${totalSuccess} track${totalSuccess !== 1 ? 's' : ''} submitted to catalog!`, 'success');
+      notify(`${totalSuccess} track${totalSuccess !== 1 ? 's' : ''} uploaded. Analyzing…`, 'success');
+
+      // Drain the analysis queue so new tracks show up in the catalog
+      // within seconds, not whenever the daily cron fires. Runs in the
+      // background; don't block the UI.
+      (async () => {
+        let safety = 10;
+        while (safety-- > 0) {
+          try {
+            const res = await fetch('/api/cron/process-analysis-queue', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok || (data.drained ?? 0) === 0) break;
+          } catch { break; }
+        }
+        notify('Analysis complete. Tracks are now live in the catalog.', 'success');
+        loadMyTracks();
+      })();
     }
     if (totalSuccess === 0 && totalFailed > 0) {
       notify('All uploads failed. Check the errors above and try again.', 'error');
