@@ -436,6 +436,16 @@ export async function uploadSong(
       });
     }
 
+    // Fire-and-forget: kick off Cyanite AI tagging. Does not block upload UX
+    // and does not roll back the upload if it fails.
+    if (trackId) {
+      fetch('/api/tracks/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId }),
+      }).catch((e) => console.warn('AI analyze kickoff failed:', e));
+    }
+
     return { trackId, success: true, failedFiles: [] };
   } catch (error) {
     console.error('Unexpected error in uploadSong:', error);
