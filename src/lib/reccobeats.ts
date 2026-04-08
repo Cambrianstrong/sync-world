@@ -80,7 +80,7 @@ export async function analyzeTrackFromUrl(fileName: string, url: string): Promis
   // 1. Fetch the audio bytes. Reccobeats caps uploads at ~5 MB on the free
   // tier, so we hard-slice the blob client-side after download. Range header
   // is advisory — Supabase Storage may ignore it and return the full file.
-  const MAX_BYTES = 4 * 1024 * 1024; // 4 MB — safely under Reccobeats' limit
+  const MAX_BYTES = 2 * 1024 * 1024; // 2 MB — safely under Reccobeats' limit
   const audioRes = await fetch(url, { headers: { Range: `bytes=0-${MAX_BYTES - 1}` } });
   if (!audioRes.ok && audioRes.status !== 206) {
     throw new Error(`Failed to fetch audio from signed URL: HTTP ${audioRes.status}`);
