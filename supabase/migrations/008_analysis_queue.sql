@@ -4,7 +4,7 @@
 
 create table if not exists public.analysis_queue (
   id uuid primary key default gen_random_uuid(),
-  track_id uuid not null references public.tracks(id) on delete cascade,
+  track_id text not null references public.tracks(id) on delete cascade,
   status text not null default 'pending' check (status in ('pending', 'processing', 'done', 'failed')),
   attempts int not null default 0,
   last_error text,
