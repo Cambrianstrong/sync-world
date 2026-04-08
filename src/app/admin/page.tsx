@@ -30,6 +30,33 @@ export default function AdminPage() {
   const [showCatManager, setShowCatManager] = useState(false);
   const [trackSearch, setTrackSearch] = useState('');
   const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeStatus, setAnalyzeStatus] = useState<string>('');
+
+  async function analyzeTracks(onlyUntagged: boolean) {
+    const targets = tracks.filter((t: any) => onlyUntagged ? !t.ai_analyzed_at : true);
+    if (targets.length === 0) { alert('No tracks to analyze.'); return; }
+    if (!confirm(`Analyze ${targets.length} track(s) with Reccobeats AI? This may take a few minutes.`)) return;
+    setAnalyzing(true);
+    let ok = 0, fail = 0;
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      setAnalyzeStatus(`Analyzing ${i + 1}/${targets.length}: ${t.title}`);
+      try {
+        const res = await fetch('/api/tracks/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trackId: t.id }),
+        });
+        const data = await res.json();
+        if (data.success) { ok++; console.log('Tagged:', t.title, data.tags); }
+        else { fail++; console.error('Failed:', t.title, data.error); }
+      } catch (e) { fail++; console.error('Failed:', t.title, e); }
+    }
+    setAnalyzeStatus('');
+    setAnalyzing(false);
+    alert(`Done. ${ok} tagged, ${fail} failed. Reload to see tags.`);
+  }
   const { notif, notify } = useNotification();
   const { track: currentTrack, playing, loading: audioLoading, play, pause } = useAudio();
 
@@ -560,6 +587,19 @@ export default function AdminPage() {
                   whiteSpace: 'nowrap', flexShrink: 0,
                 }}>
                   Repair
+                </button>
+                <button
+                  onClick={() => analyzeTracks(true)}
+                  disabled={analyzing}
+                  style={{
+                    padding: '8px 14px', borderRadius: 8, border: '1px solid #6366f1',
+                    background: analyzing ? 'transparent' : '#6366f1',
+                    color: analyzing ? '#6366f1' : '#fff', fontSize: 12, fontWeight: 600,
+                    cursor: analyzing ? 'wait' : 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    whiteSpace: 'nowrap', flexShrink: 0,
+                  }}
+                >
+                  {analyzing ? (analyzeStatus || 'Analyzing…') : 'Analyze AI'}
                 </button>
                 {selectedTracks.size > 0 && (
                   <button onClick={deleteSelected} style={{
