@@ -663,6 +663,13 @@ export default function AdminPage() {
                     <td style={tdStyle}>
                       <div style={{ fontWeight: 600 }}>{t.title}</div>
                       <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
+                      {(t.mood || t.bpm || t.energy != null) && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                          {t.mood && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: 'rgba(99,102,241,0.15)', color: '#818cf8', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t.mood}</span>}
+                          {t.bpm && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>{t.bpm} BPM</span>}
+                          {t.energy != null && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: 'rgba(251,146,60,0.12)', color: '#fb923c' }}>E {Math.round(t.energy * 100)}</span>}
+                        </div>
+                      )}
                     </td>
                     <td style={{ ...tdStyle, fontSize: 12 }}>{t.genre || '\u2014'}</td>
                     <td style={tdStyle}>
@@ -751,6 +758,35 @@ export default function AdminPage() {
                   {/* Title */}
                   <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2, marginRight: 65 }}>{t.title}</div>
                   <div style={{ color: 'var(--dim)', fontSize: 12, marginBottom: 10 }}>{t.artist}</div>
+                  {/* AI tags row */}
+                  {(t.ai_analyzed_at || t.bpm || t.mood) && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+                      {t.mood && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 10,
+                          background: 'rgba(99,102,241,0.15)', color: '#818cf8', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                          {t.mood}
+                        </span>
+                      )}
+                      {t.bpm && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 10,
+                          background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>
+                          {t.bpm} BPM
+                        </span>
+                      )}
+                      {t.energy != null && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 10,
+                          background: 'rgba(251,146,60,0.12)', color: '#fb923c' }}>
+                          Energy {Math.round(t.energy * 100)}
+                        </span>
+                      )}
+                      {t.ai_tags?.key && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 10,
+                          background: 'rgba(148,163,184,0.15)', color: 'var(--dim)' }}>
+                          {t.ai_tags.key}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {/* Badges */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
                     <Badge variant={statusBadgeVariant(t.status)}>
