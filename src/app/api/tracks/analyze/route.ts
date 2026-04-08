@@ -57,22 +57,36 @@ export async function POST(request: NextRequest) {
   try {
     const tags = await analyzeTrackFromUrl(main.file_name, signed.signedUrl);
 
-    // Write back. ai_tags is the source of truth; the rest are convenience columns.
+    // The existing schema constrains `energy` to ('Very High','High','Medium','Low').
+    // Map the numeric 0–1 value into those buckets so the update passes the CHECK.
+    const energyBucket = (e: number | null): string | null => {
+      if (e == null) return null;
+      if (e >= 0.8) return 'Very High';
+      if (e >= 0.6) return 'High';
+      if (e >= 0.35) return 'Medium';
+      return 'Low';
+    };
+
+    // Write back. ai_tags is the source of truth (full numeric data);
+    // top-level columns stay compatible with existing UI.
     const update: Record<string, unknown> = {
       ai_tags: tags,
       ai_analyzed_at: new Date().toISOString(),
     };
     if (tags.mood) update.mood = tags.mood;
-    if (tags.energy != null) update.energy = tags.energy;
-    if (tags.genre) update.genre = tags.genre;
+    const bucket = energyBucket(tags.energy);
+    if (bucket) update.energy = bucket;
     if (tags.bpm != null) update.bpm = tags.bpm;
     if (tags.key) update.key = tags.key;
 
     const { error: updErr } = await admin.from('tracks').update(update).eq('id', trackId);
     if (updErr) {
-      // If columns don't exist, still return the tags so the caller can surface them
-      console.warn('tracks update failed (missing columns?):', updErr.message);
-      return NextResponse.json({ success: true, tags, warning: updErr.message });
+      // Surface the real DB error so we can see what's happening
+      console.error('tracks update failed:', updErr.message, 'update payload:', update);
+      return NextResponse.json(
+        { success: false, tags, error: `DB update failed: ${updErr.message}` },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true, tags });

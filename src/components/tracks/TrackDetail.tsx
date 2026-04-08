@@ -284,6 +284,45 @@ export default function TrackDetail({ track, open, onClose, onInterest, showInte
           </div>
         )}
 
+        {/* AI Audio Insights (Reccobeats) */}
+        {(track as any).ai_tags && (
+          <div style={{
+            marginBottom: 20, padding: 14, borderRadius: 12,
+            border: '1px solid var(--border)', background: 'var(--surface-solid)',
+          }}>
+            <div style={{
+              fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4,
+              color: 'var(--dim)', fontWeight: 600, marginBottom: 10,
+            }}>
+              AI Audio Insights
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              {((track as any).ai_tags.moods || []).map((m: string) => (
+                <span key={m} style={{
+                  fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 12,
+                  background: 'rgba(99,102,241,0.12)', color: '#818cf8',
+                  textTransform: 'uppercase', letterSpacing: 0.3,
+                }}>{m}</span>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 12 }}>
+              {[
+                ['Tempo', (track as any).ai_tags.bpm ? `${(track as any).ai_tags.bpm} BPM` : null],
+                ['Energy', (track as any).ai_tags.energy != null ? `${Math.round((track as any).ai_tags.energy * 100)}%` : null],
+                ['Valence', (track as any).ai_tags.valence != null ? `${Math.round((track as any).ai_tags.valence * 100)}%` : null],
+                ['Danceability', (track as any).ai_tags.danceability != null ? `${Math.round((track as any).ai_tags.danceability * 100)}%` : null],
+                ['Acoustic', (track as any).ai_tags.acousticness != null ? `${Math.round((track as any).ai_tags.acousticness * 100)}%` : null],
+                ['Vocal', (track as any).ai_tags.vocal || null],
+              ].filter(([, v]) => v).map(([label, value]) => (
+                <div key={label as string}>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--dim)', marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="detail-grid" style={{ marginBottom: 20 }}>
           {[
             ['Status', track.status],
