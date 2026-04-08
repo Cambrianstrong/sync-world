@@ -77,19 +77,22 @@ function formatKey(key: number | null | undefined, mode: number | null | undefin
 export async function analyzeTrackFromUrl(fileName: string, url: string): Promise<AudioTags> {
   const apiKey = process.env.RECCOBEATS_API_KEY;
 
-  // 1. Fetch the audio bytes — use Range to cap at ~8 MB so we stay under
-  // Reccobeats' upload limit. MP3/AAC/OGG decode fine from a truncated stream;
-  // large WAVs get their first ~45s of PCM which is enough for analysis.
-  const MAX_BYTES = 8 * 1024 * 1024;
+  // 1. Fetch the audio bytes. Reccobeats caps uploads at ~5 MB on the free
+  // tier, so we hard-slice the blob client-side after download. Range header
+  // is advisory — Supabase Storage may ignore it and return the full file.
+  const MAX_BYTES = 4 * 1024 * 1024; // 4 MB — safely under Reccobeats' limit
   const audioRes = await fetch(url, { headers: { Range: `bytes=0-${MAX_BYTES - 1}` } });
   if (!audioRes.ok && audioRes.status !== 206) {
     throw new Error(`Failed to fetch audio from signed URL: HTTP ${audioRes.status}`);
   }
   let audioBlob = await audioRes.blob();
-  // Extra safety: if the server ignored Range and returned the whole file, slice it.
+  const originalSize = audioBlob.size;
   if (audioBlob.size > MAX_BYTES) {
     audioBlob = audioBlob.slice(0, MAX_BYTES, audioBlob.type || 'audio/mpeg');
   }
+  console.log(
+    `[reccobeats] ${fileName}: fetched ${originalSize} bytes, sending ${audioBlob.size} bytes`
+  );
 
   // 2. POST multipart to Reccobeats
   const form = new FormData();
