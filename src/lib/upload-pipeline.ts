@@ -436,14 +436,16 @@ export async function uploadSong(
       });
     }
 
-    // Fire-and-forget: kick off Cyanite AI tagging. Does not block upload UX
-    // and does not roll back the upload if it fails.
+    // Fire-and-forget: enqueue the track for background AI analysis.
+    // A Vercel Cron job (/api/cron/process-analysis-queue, every minute)
+    // drains the queue, so this does not block upload UX and survives the
+    // user closing the tab.
     if (trackId) {
-      fetch('/api/tracks/analyze', {
+      fetch('/api/tracks/enqueue-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trackId }),
-      }).catch((e) => console.warn('AI analyze kickoff failed:', e));
+      }).catch((e) => console.warn('AI enqueue failed:', e));
     }
 
     return { trackId, success: true, failedFiles: [] };
@@ -469,8 +471,17 @@ export async function uploadSong(
   }
 }
 
+/** Max number of songs accepted per batch. Keeps memory, network, and
+ *  the user's browser tab from being overwhelmed. */
+export const MAX_SONGS_PER_BATCH = 10;
+
+/** Number of songs uploaded concurrently within a batch. */
+const UPLOAD_CONCURRENCY = 3;
+
 /**
- * Orchestrator: uploads all songs and manages progress state
+ * Orchestrator: uploads all songs and manages progress state.
+ * - Hard-caps batches at MAX_SONGS_PER_BATCH.
+ * - Runs up to UPLOAD_CONCURRENCY songs in parallel.
  */
 export async function uploadAllSongs(
   options: UploadPipelineOptions,
@@ -480,6 +491,12 @@ export async function uploadAllSongs(
     title: string;
   }[]
 ): Promise<{ totalSuccess: number; totalFailed: number; results: SongUploadProgress[] }> {
+  if (songs.length > MAX_SONGS_PER_BATCH) {
+    throw new Error(
+      `Batch exceeds the ${MAX_SONGS_PER_BATCH}-song limit. Please upload in smaller groups.`
+    );
+  }
+
   const maxRetries = options.maxRetries ?? 3;
   const retryBaseDelayMs = options.retryBaseDelayMs ?? 1000;
 
@@ -496,48 +513,55 @@ export async function uploadAllSongs(
   let totalSuccess = 0;
   let totalFailed = 0;
 
-  // Upload songs sequentially to avoid overwhelming the server
-  for (let songIndex = 0; songIndex < songs.length; songIndex++) {
-    const song = songs[songIndex];
-    const result = results[songIndex];
+  // Concurrency pool: at most UPLOAD_CONCURRENCY songs in flight at once.
+  let nextIndex = 0;
+  async function worker() {
+    while (true) {
+      const songIndex = nextIndex++;
+      if (songIndex >= songs.length) return;
+      const song = songs[songIndex];
+      const result = results[songIndex];
 
-    result.status = 'in_progress';
-    options.onProgress(results);
+      result.status = 'in_progress';
+      options.onProgress(results);
 
-    try {
-      const uploadResult = await uploadSong(
-        options.supabase,
-        song.trackData,
-        song.files,
-        (fileIndex, fileProgress) => {
-          result.files[fileIndex] = fileProgress;
-          options.onProgress(results);
-        },
-        { maxRetries, retryBaseDelayMs }
-      );
+      try {
+        const uploadResult = await uploadSong(
+          options.supabase,
+          song.trackData,
+          song.files,
+          (fileIndex, fileProgress) => {
+            result.files[fileIndex] = fileProgress;
+            options.onProgress(results);
+          },
+          { maxRetries, retryBaseDelayMs }
+        );
 
-      if (uploadResult.success) {
-        result.status = 'complete';
-        result.trackId = uploadResult.trackId || undefined;
-        totalSuccess++;
-      } else {
-        if (uploadResult.failedFiles.length === song.files.length) {
-          result.status = 'failed';
-          totalFailed++;
+        if (uploadResult.success) {
+          result.status = 'complete';
+          result.trackId = uploadResult.trackId || undefined;
+          totalSuccess++;
         } else {
-          result.status = 'partial';
+          result.status =
+            uploadResult.failedFiles.length === song.files.length ? 'failed' : 'partial';
+          result.error = `${uploadResult.failedFiles.length} file(s) failed to upload`;
           totalFailed++;
         }
-        result.error = `${uploadResult.failedFiles.length} file(s) failed to upload`;
+      } catch (error) {
+        result.status = 'failed';
+        result.error = error instanceof Error ? error.message : String(error);
+        totalFailed++;
       }
-    } catch (error) {
-      result.status = 'failed';
-      result.error = error instanceof Error ? error.message : String(error);
-      totalFailed++;
-    }
 
-    options.onProgress(results);
+      options.onProgress(results);
+    }
   }
+
+  const workers = Array.from(
+    { length: Math.min(UPLOAD_CONCURRENCY, songs.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
 
   return { totalSuccess, totalFailed, results };
 }

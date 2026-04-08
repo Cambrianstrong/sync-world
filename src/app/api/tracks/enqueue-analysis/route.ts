@@ -1,14 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeOneTrack } from '@/lib/analyze-track';
+import { enqueueTrackForAnalysis } from '@/lib/analyze-track';
 
 /**
- * POST /api/tracks/analyze
+ * POST /api/tracks/enqueue-analysis
  * Body: { trackId: string }
  *
- * On-demand Reccobeats analysis. For batch/background work, use the
- * analysis_queue table + /api/cron/process-analysis-queue instead.
+ * Inserts a row into analysis_queue. The Vercel cron worker
+ * (/api/cron/process-analysis-queue) drains it every minute.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -29,11 +29,12 @@ export async function POST(request: NextRequest) {
   if (!trackId) return NextResponse.json({ error: 'Missing trackId' }, { status: 400 });
 
   try {
-    const { tags } = await analyzeOneTrack(admin, trackId);
-    return NextResponse.json({ success: true, tags });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('analyze error:', msg);
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    const inserted = await enqueueTrackForAnalysis(admin, trackId);
+    return NextResponse.json({ success: true, inserted });
+  } catch (e) {
+    return NextResponse.json(
+      { success: false, error: e instanceof Error ? e.message : String(e) },
+      { status: 500 }
+    );
   }
 }

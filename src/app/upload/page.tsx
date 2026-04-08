@@ -12,7 +12,7 @@ import DropZone from '@/components/upload/DropZone';
 import Badge, { statusBadgeVariant, syncBadgeVariant } from '@/components/ui/Badge';
 import Notification, { useNotification } from '@/components/ui/Notification';
 import { useAuth } from '@/hooks/useAuth';
-import { uploadAllSongs, validateAudioFile, type SongUploadProgress } from '@/lib/upload-pipeline';
+import { uploadAllSongs, validateAudioFile, MAX_SONGS_PER_BATCH, type SongUploadProgress } from '@/lib/upload-pipeline';
 
 interface SongGroup {
   name: string;
@@ -173,6 +173,14 @@ export default function UploadPage() {
   }
 
   async function submitAll() {
+    if (songGroups.length > MAX_SONGS_PER_BATCH) {
+      notify(
+        `You can upload at most ${MAX_SONGS_PER_BATCH} songs per batch. You currently have ${songGroups.length}. Please remove ${songGroups.length - MAX_SONGS_PER_BATCH} and try again.`,
+        'error'
+      );
+      return;
+    }
+
     setSubmitting(true);
     setUploadProgress([]);
     const supabase = createClient();
