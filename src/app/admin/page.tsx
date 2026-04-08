@@ -36,26 +36,38 @@ export default function AdminPage() {
   async function analyzeTracks(onlyUntagged: boolean) {
     const targets = tracks.filter((t: any) => onlyUntagged ? !t.ai_analyzed_at : true);
     if (targets.length === 0) { alert('No tracks to analyze.'); return; }
-    if (!confirm(`Analyze ${targets.length} track(s) with Reccobeats AI? This may take a few minutes.`)) return;
+    if (!confirm(`Queue ${targets.length} track(s) for AI analysis? This drains the queue in batches.`)) return;
     setAnalyzing(true);
-    let ok = 0, fail = 0;
-    for (let i = 0; i < targets.length; i++) {
-      const t = targets[i];
-      setAnalyzeStatus(`Analyzing ${i + 1}/${targets.length}: ${t.title}`);
+    let totalOk = 0, totalFailed = 0;
+
+    // 1. Enqueue every target track
+    setAnalyzeStatus(`Queueing ${targets.length} tracks…`);
+    for (const t of targets) {
       try {
-        const res = await fetch('/api/tracks/analyze', {
+        await fetch('/api/tracks/enqueue-analysis', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ trackId: t.id }),
         });
-        const data = await res.json();
-        if (data.success) { ok++; console.log('Tagged:', t.title, data.tags); }
-        else { fail++; console.error('Failed:', t.title, data.error); }
-      } catch (e) { fail++; console.error('Failed:', t.title, e); }
+      } catch (e) { console.warn('enqueue failed', t.title, e); }
     }
+
+    // 2. Drain the queue in batches by hitting the cron endpoint repeatedly
+    let safety = 20;
+    while (safety-- > 0) {
+      setAnalyzeStatus(`Processing queue… (${totalOk} done, ${totalFailed} failed)`);
+      const res = await fetch('/api/cron/process-analysis-queue', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { console.error('drain failed', data); break; }
+      totalOk += data.ok || 0;
+      totalFailed += data.failed || 0;
+      if ((data.drained || 0) === 0) break;
+      if (data.errors?.length) console.warn('batch errors:', data.errors);
+    }
+
     setAnalyzeStatus('');
     setAnalyzing(false);
-    alert(`Done. ${ok} tagged, ${fail} failed. Reload to see tags.`);
+    alert(`Done. ${totalOk} tagged, ${totalFailed} failed. Reload to see tags.`);
   }
   const { notif, notify } = useNotification();
   const { track: currentTrack, playing, loading: audioLoading, play, pause } = useAudio();

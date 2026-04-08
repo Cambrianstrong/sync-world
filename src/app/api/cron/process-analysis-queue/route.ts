@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { analyzeOneTrack } from '@/lib/analyze-track';
@@ -13,17 +14,39 @@ const RECCOBEATS_DELAY_MS = 1500; // spacing between calls to avoid 429s
 
 export const maxDuration = 60; // allow up to 60s on Vercel Pro
 
-export async function GET(request: NextRequest) {
-  // Vercel Cron hits this with a secret header; also allow a manual run
-  // with ?secret=... for debugging.
+async function isAuthorized(request: NextRequest): Promise<boolean> {
+  // 1. Vercel Cron / external cron services with secret
   const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get('authorization') || '';
-  const querySecret = request.nextUrl.searchParams.get('secret') || '';
-  const authorized =
-    !cronSecret ||
-    authHeader === `Bearer ${cronSecret}` ||
-    querySecret === cronSecret;
-  if (!authorized) {
+  if (cronSecret) {
+    const authHeader = request.headers.get('authorization') || '';
+    const querySecret = request.nextUrl.searchParams.get('secret') || '';
+    if (authHeader === `Bearer ${cronSecret}` || querySecret === cronSecret) {
+      return true;
+    }
+  } else {
+    // No secret configured — allow cron-style invocations
+    if (request.headers.get('user-agent')?.includes('vercel-cron')) return true;
+  }
+
+  // 2. Admin user clicking "Process Queue" from the dashboard
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    return profile?.role === 'admin';
+  } catch {
+    return false;
+  }
+}
+
+async function processQueue(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
@@ -92,4 +115,12 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ drained: pending.length, ok, failed, errors });
+}
+
+export async function GET(request: NextRequest) {
+  return processQueue(request);
+}
+
+export async function POST(request: NextRequest) {
+  return processQueue(request);
 }
