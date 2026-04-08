@@ -41,6 +41,25 @@ export interface Track {
   submitted_by: string | null;
   date_added: string;
   created_at: string;
+  // AI audio analysis (Reccobeats)
+  ai_tags?: {
+    mood?: string | null;
+    moods?: string[];
+    energy?: number | null;
+    valence?: number | null;
+    danceability?: number | null;
+    acousticness?: number | null;
+    instrumentalness?: number | null;
+    liveness?: number | null;
+    speechiness?: number | null;
+    loudness?: number | null;
+    bpm?: number | null;
+    key?: string | null;
+    vocal?: 'vocal' | 'instrumental' | null;
+    genre?: string | null;
+    genres?: string[];
+  } | null;
+  ai_analyzed_at?: string | null;
 }
 
 export interface TrackFile {

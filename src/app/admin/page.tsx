@@ -663,11 +663,11 @@ export default function AdminPage() {
                     <td style={tdStyle}>
                       <div style={{ fontWeight: 600 }}>{t.title}</div>
                       <div style={{ color: 'var(--dim)', fontSize: 12 }}>{t.artist}</div>
-                      {(t.mood || t.bpm || t.energy != null) && (
+                      {(t.mood || t.bpm || t.ai_tags?.energy != null) && (
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                           {t.mood && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: 'rgba(99,102,241,0.15)', color: '#818cf8', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t.mood}</span>}
                           {t.bpm && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>{t.bpm} BPM</span>}
-                          {t.energy != null && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: 'rgba(251,146,60,0.12)', color: '#fb923c' }}>E {Math.round(t.energy * 100)}</span>}
+                          {t.ai_tags?.energy != null && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 8, background: 'rgba(251,146,60,0.12)', color: '#fb923c' }}>E {Math.round((t.ai_tags.energy as number) * 100)}</span>}
                         </div>
                       )}
                     </td>
@@ -773,10 +773,10 @@ export default function AdminPage() {
                           {t.bpm} BPM
                         </span>
                       )}
-                      {t.energy != null && (
+                      {t.ai_tags?.energy != null && (
                         <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 10,
                           background: 'rgba(251,146,60,0.12)', color: '#fb923c' }}>
-                          Energy {Math.round(t.energy * 100)}
+                          Energy {Math.round((t.ai_tags.energy as number) * 100)}
                         </span>
                       )}
                       {t.ai_tags?.key && (
