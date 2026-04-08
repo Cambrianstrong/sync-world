@@ -77,35 +77,45 @@ function formatKey(key: number | null | undefined, mode: number | null | undefin
 export async function analyzeTrackFromUrl(fileName: string, url: string): Promise<AudioTags> {
   const apiKey = process.env.RECCOBEATS_API_KEY;
 
-  // 1. Fetch the audio bytes. Reccobeats caps uploads at ~5 MB on the free
-  // tier, so we hard-slice the blob client-side after download. Range header
-  // is advisory — Supabase Storage may ignore it and return the full file.
-  const MAX_BYTES = 2 * 1024 * 1024; // 2 MB — safely under Reccobeats' limit
-  const audioRes = await fetch(url, { headers: { Range: `bytes=0-${MAX_BYTES - 1}` } });
-  if (!audioRes.ok && audioRes.status !== 206) {
+  // 1. Fetch the full audio file. Reccobeats caps uploads around 5 MB on the
+  // free tier; we try the full file first (so WAVs and other formats that
+  // can't be safely truncated work when under the limit) and only slice on
+  // a 413. Slicing a WAV mid-stream corrupts the header and Reccobeats will
+  // reject it with HTTP 400 "Get audio features fail" — so slicing is a
+  // last-resort fallback and only really works cleanly for MP3/AAC.
+  const audioRes = await fetch(url);
+  if (!audioRes.ok) {
     throw new Error(`Failed to fetch audio from signed URL: HTTP ${audioRes.status}`);
   }
-  let audioBlob = await audioRes.blob();
-  const originalSize = audioBlob.size;
-  if (audioBlob.size > MAX_BYTES) {
-    audioBlob = audioBlob.slice(0, MAX_BYTES, audioBlob.type || 'audio/mpeg');
-  }
-  console.log(
-    `[reccobeats] ${fileName}: fetched ${originalSize} bytes, sending ${audioBlob.size} bytes`
-  );
-
-  // 2. POST multipart to Reccobeats
-  const form = new FormData();
-  form.append('audioFile', audioBlob, fileName);
+  const audioBlob = await audioRes.blob();
+  console.log(`[reccobeats] ${fileName}: fetched ${audioBlob.size} bytes`);
 
   const headers: Record<string, string> = {};
   if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
-  const res = await fetch(RECCOBEATS_ENDPOINT, {
-    method: 'POST',
-    headers,
-    body: form,
-  });
+  async function postBlob(blob: Blob): Promise<Response> {
+    const form = new FormData();
+    form.append('audioFile', blob, fileName);
+    return fetch(RECCOBEATS_ENDPOINT, { method: 'POST', headers, body: form });
+  }
+
+  // 2. POST full file first
+  let res = await postBlob(audioBlob);
+
+  // 3. If too large, fall back to a 2 MB head slice. Only safe for MP3/AAC/OGG.
+  if (res.status === 413) {
+    const ext = fileName.toLowerCase().split('.').pop();
+    const safeToSlice = ext && ['mp3', 'aac', 'm4a', 'ogg'].includes(ext);
+    if (!safeToSlice) {
+      throw new Error(
+        `Reccobeats HTTP 413 (Payload Too Large) and file is .${ext} — cannot safely truncate. ` +
+          `Convert to MP3 before uploading, or upgrade Reccobeats tier.`
+      );
+    }
+    const sliced = audioBlob.slice(0, 2 * 1024 * 1024, audioBlob.type || 'audio/mpeg');
+    console.log(`[reccobeats] ${fileName}: 413 on full size, retrying with ${sliced.size} bytes`);
+    res = await postBlob(sliced);
+  }
 
   if (!res.ok) {
     throw new Error(`Reccobeats HTTP ${res.status}: ${await res.text()}`);
