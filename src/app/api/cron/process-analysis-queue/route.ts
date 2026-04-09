@@ -94,11 +94,29 @@ async function processQueue(request: NextRequest) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const nextAttempts = row.attempts + 1;
-      const finalStatus = nextAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+      const exhausted = nextAttempts >= MAX_ATTEMPTS;
+
+      if (exhausted) {
+        // Graceful degradation: after 3 attempts, mark the track itself
+        // as 'analyzed' with empty tags so it appears in the catalog.
+        // The queue row stays as 'failed' with the last error for audit.
+        try {
+          await admin
+            .from('tracks')
+            .update({
+              ai_analyzed_at: new Date().toISOString(),
+              ai_tags: { error: msg, skipped: true },
+            })
+            .eq('id', row.track_id);
+        } catch (degradeErr) {
+          console.error('graceful degrade failed:', degradeErr);
+        }
+      }
+
       await admin
         .from('analysis_queue')
         .update({
-          status: finalStatus,
+          status: exhausted ? 'failed' : 'pending',
           attempts: nextAttempts,
           last_error: msg,
           updated_at: new Date().toISOString(),

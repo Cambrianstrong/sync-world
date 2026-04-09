@@ -12,7 +12,7 @@ import DropZone from '@/components/upload/DropZone';
 import Badge, { statusBadgeVariant, syncBadgeVariant } from '@/components/ui/Badge';
 import Notification, { useNotification } from '@/components/ui/Notification';
 import { useAuth } from '@/hooks/useAuth';
-import { uploadAllSongs, validateAudioFile, MAX_SONGS_PER_BATCH, type SongUploadProgress } from '@/lib/upload-pipeline';
+import { uploadAllSongs, validateAudioFile, verifyAudioDecodable, MAX_SONGS_PER_BATCH, type SongUploadProgress } from '@/lib/upload-pipeline';
 
 interface SongGroup {
   name: string;
@@ -191,6 +191,21 @@ export default function UploadPage() {
         const validation = validateAudioFile(file);
         if (!validation.valid) {
           notify(`Invalid file "${file.name}": ${validation.error}`, 'error');
+          setSubmitting(false);
+          return;
+        }
+      }
+    }
+
+    // Second pass: actually decode each file in the browser to catch
+    // corrupted files, wrong-extension masquerading, and unsupported codecs
+    // BEFORE anything is uploaded.
+    notify('Verifying audio files…', 'info');
+    for (const song of songGroups) {
+      for (const file of song.files) {
+        const check = await verifyAudioDecodable(file);
+        if (!check.ok) {
+          notify(`"${file.name}" — ${check.error}`, 'error');
           setSubmitting(false);
           return;
         }

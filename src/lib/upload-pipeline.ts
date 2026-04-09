@@ -84,6 +84,43 @@ export function validateAudioFile(file: File): { valid: boolean; error?: string 
 }
 
 /**
+ * Decode an audio file in the browser to verify it is actually playable.
+ * Catches corrupted WAVs, truncated files, wrong-extension masquerading, etc.
+ * Runs fully client-side via the Web Audio API — no upload, no server.
+ */
+export async function verifyAudioDecodable(
+  file: File
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (typeof window === 'undefined') return { ok: true }; // SSR no-op
+  const AC: typeof AudioContext | undefined =
+    (window as any).AudioContext || (window as any).webkitAudioContext;
+  if (!AC) return { ok: true }; // Older browser — skip, don't block upload
+
+  let ctx: AudioContext | null = null;
+  try {
+    ctx = new AC();
+    const buf = await file.arrayBuffer();
+    // decodeAudioData mutates the buffer — clone first
+    const decoded = await ctx.decodeAudioData(buf.slice(0));
+    if (!decoded || decoded.duration <= 0) {
+      return { ok: false, error: 'File decoded but has no audio content' };
+    }
+    if (decoded.duration < 1) {
+      return { ok: false, error: 'File is too short (under 1 second)' };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: `This file appears to be corrupted or uses an unsupported codec. Please re-export as MP3 or WAV. (${msg})`,
+    };
+  } finally {
+    try { await ctx?.close(); } catch { /* ignore */ }
+  }
+}
+
+/**
  * Retry wrapper with exponential backoff and jitter
  * Delay = baseDelay * 2^attempt + random(0, baseDelay/2)
  */
